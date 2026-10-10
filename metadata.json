@@ -1,0 +1,6 @@
+{
+  "name": "Altron Code",
+  "description": "Mobile-first AI coding studio and environment for Android with real AI agent, terminal adapter, project management, and build workflow",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
