@@ -43,10 +43,9 @@ enum class ProviderType(
   GEMINI(
     displayName = "Google Gemini",
     defaultBaseUrl = "https://generativelanguage.googleapis.com",
-    defaultModel = "gemini-2.5-flash",
+    defaultModel = "gemini-3.8-flash",
     verifiedModels = listOf(
-      "gemini-2.5-flash",
-      "gemini-2.5-pro",
+      "gemini-3.8-flash",
       "gemini-2.0-flash",
       "gemini-1.5-flash",
       "gemini-1.5-pro"
@@ -82,9 +81,9 @@ enum class ProviderType(
   OPENROUTER(
     displayName = "OpenRouter",
     defaultBaseUrl = "https://openrouter.ai/api/v1",
-    defaultModel = "google/gemini-2.5-flash",
+    defaultModel = "google/gemini-3.8-flash",
     verifiedModels = listOf(
-      "google/gemini-2.5-flash",
+      "google/gemini-3.8-flash",
       "anthropic/claude-3.7-sonnet",
       "anthropic/claude-3.5-sonnet",
       "deepseek/deepseek-r1",
