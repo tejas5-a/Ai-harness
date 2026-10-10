@@ -312,6 +312,9 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
     _statusMessage.value = "Active provider set to ${type.displayName}"
   }
 
+  // AI Agent Streaming Job
+  private var activeAgentJob: kotlinx.coroutines.Job? = null
+
   fun testProvider(config: ApiProviderConfig) {
     viewModelScope.launch {
       _statusMessage.value = "Testing connection to ${config.providerType.displayName}..."
@@ -322,6 +325,26 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
     }
   }
 
+  fun fetchDynamicModels(config: ApiProviderConfig) {
+    viewModelScope.launch {
+      _statusMessage.value = "Fetching online models from ${config.providerType.displayName}..."
+      val (success, models) = agentService.fetchAvailableModels(config)
+      if (success && models.isNotEmpty()) {
+        apiKeyRepo.saveFetchedModels(config.providerType, models)
+        loadProviders()
+        _statusMessage.value = "Retrieved ${models.size} models from ${config.providerType.displayName}"
+      } else {
+        _statusMessage.value = "Could not retrieve models dynamically. Verify key or enter manually."
+      }
+    }
+  }
+
+  fun removeProviderConfig(type: ProviderType) {
+    apiKeyRepo.clearProviderConfig(type)
+    loadProviders()
+    _statusMessage.value = "Removed configuration for ${type.displayName}"
+  }
+
   // ==================== AI AGENT ====================
 
   fun sendAgentMessage(userText: String) {
@@ -330,25 +353,75 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
 
     val currentMsgs = _chatMessages.value.toMutableList()
     currentMsgs.add(ChatMessage(sender = MessageSender.USER, content = prompt))
+
+    val provider = _activeProvider.value
+    val agentMsgId = java.util.UUID.randomUUID().toString()
+    val placeholder = ChatMessage(
+      id = agentMsgId,
+      sender = MessageSender.AGENT,
+      content = "",
+      isStreaming = true,
+      providerUsed = "${provider.providerType.displayName} (${provider.selectedModel})"
+    )
+    currentMsgs.add(placeholder)
     _chatMessages.value = currentMsgs
     _isAgentThinking.value = true
 
-    viewModelScope.launch {
+    activeAgentJob?.cancel()
+    activeAgentJob = viewModelScope.launch {
       val proj = _activeProject.value
       val projectContext = buildProjectContext(proj)
-      val provider = _activeProvider.value
+      val accumulated = StringBuilder()
 
-      val response = agentService.generateAgentResponse(
-        prompt = prompt,
-        config = provider,
-        projectContext = projectContext,
-        history = currentMsgs
+      try {
+        agentService.streamAgentResponse(
+          prompt = prompt,
+          config = provider,
+          projectContext = projectContext,
+          history = currentMsgs.dropLast(1)
+        ).collect { chunk ->
+          accumulated.append(chunk)
+          val list = _chatMessages.value.toMutableList()
+          val idx = list.indexOfFirst { it.id == agentMsgId }
+          if (idx != -1) {
+            list[idx] = list[idx].copy(content = accumulated.toString())
+            _chatMessages.value = list
+          }
+        }
+      } catch (e: Exception) {
+        if (accumulated.isEmpty()) {
+          accumulated.append("❌ Error: ${e.localizedMessage ?: "Failed to generate response"}")
+        }
+      } finally {
+        val finalContent = accumulated.toString()
+        val toolAction = agentService.extractToolAction(finalContent)
+        val list = _chatMessages.value.toMutableList()
+        val idx = list.indexOfFirst { it.id == agentMsgId }
+        if (idx != -1) {
+          list[idx] = list[idx].copy(
+            content = finalContent.ifEmpty { "No response content received." },
+            isStreaming = false,
+            toolAction = toolAction
+          )
+          _chatMessages.value = list
+        }
+        _isAgentThinking.value = false
+      }
+    }
+  }
+
+  fun cancelAgent() {
+    activeAgentJob?.cancel()
+    activeAgentJob = null
+    _isAgentThinking.value = false
+    val list = _chatMessages.value.toMutableList()
+    val last = list.lastOrNull()
+    if (last != null && last.isStreaming) {
+      list[list.lastIndex] = last.copy(
+        content = if (last.content.isEmpty()) "Generation cancelled by user." else "${last.content}\n\n[Cancelled]",
+        isStreaming = false
       )
-
-      val updated = _chatMessages.value.toMutableList()
-      updated.add(response)
-      _chatMessages.value = updated
-      _isAgentThinking.value = false
+      _chatMessages.value = list
     }
   }
 

@@ -36,57 +36,103 @@ enum class ProviderType(
   val displayName: String,
   val defaultBaseUrl: String,
   val defaultModel: String,
-  val defaultModels: List<String>,
-  val docsUrl: String
+  val verifiedModels: List<String>,
+  val docsUrl: String,
+  val defaultCapabilities: String
 ) {
   GEMINI(
     displayName = "Google Gemini",
     defaultBaseUrl = "https://generativelanguage.googleapis.com",
     defaultModel = "gemini-2.5-flash",
-    defaultModels = listOf("gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"),
-    docsUrl = "https://aistudio.google.com/app/apikey"
+    verifiedModels = listOf(
+      "gemini-2.5-flash",
+      "gemini-2.5-pro",
+      "gemini-2.0-flash",
+      "gemini-1.5-flash",
+      "gemini-1.5-pro"
+    ),
+    docsUrl = "https://aistudio.google.com/app/apikey",
+    defaultCapabilities = "Multimodal, Fast Reasoning, Large Context (1M+)"
   ),
   OPENAI(
     displayName = "OpenAI",
     defaultBaseUrl = "https://api.openai.com/v1",
     defaultModel = "gpt-4o-mini",
-    defaultModels = listOf("gpt-4o-mini", "gpt-4o", "gpt-4-turbo"),
-    docsUrl = "https://platform.openai.com/api-keys"
+    verifiedModels = listOf(
+      "gpt-4o",
+      "gpt-4o-mini",
+      "o3-mini",
+      "o1",
+      "gpt-4-turbo"
+    ),
+    docsUrl = "https://platform.openai.com/api-keys",
+    defaultCapabilities = "Function Calling, Complex Reasoning, Code Generation"
   ),
   DEEPSEEK(
     displayName = "DeepSeek AI",
     defaultBaseUrl = "https://api.deepseek.com",
     defaultModel = "deepseek-chat",
-    defaultModels = listOf("deepseek-chat", "deepseek-coder", "deepseek-reasoner"),
-    docsUrl = "https://platform.deepseek.com/api_keys"
+    verifiedModels = listOf(
+      "deepseek-chat",
+      "deepseek-reasoner"
+    ),
+    docsUrl = "https://platform.deepseek.com/api_keys",
+    defaultCapabilities = "V3 671B MoE, R1 Chain-of-Thought Reasoning, Low Cost"
   ),
   OPENROUTER(
     displayName = "OpenRouter",
     defaultBaseUrl = "https://openrouter.ai/api/v1",
     defaultModel = "google/gemini-2.5-flash",
-    defaultModels = listOf("google/gemini-2.5-flash", "anthropic/claude-3.5-sonnet", "meta-llama/llama-3.3-70b-instruct"),
-    docsUrl = "https://openrouter.ai/keys"
+    verifiedModels = listOf(
+      "google/gemini-2.5-flash",
+      "anthropic/claude-3.7-sonnet",
+      "anthropic/claude-3.5-sonnet",
+      "deepseek/deepseek-r1",
+      "deepseek/deepseek-chat",
+      "openai/gpt-4o-mini",
+      "meta-llama/llama-3.3-70b-instruct"
+    ),
+    docsUrl = "https://openrouter.ai/keys",
+    defaultCapabilities = "Unified Multi-Provider Gateway, Auto-Fallback"
   ),
   CLAUDE(
     displayName = "Anthropic Claude",
     defaultBaseUrl = "https://api.anthropic.com/v1",
     defaultModel = "claude-3-5-sonnet-20241022",
-    defaultModels = listOf("claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"),
-    docsUrl = "https://console.anthropic.com/settings/keys"
+    verifiedModels = listOf(
+      "claude-3-7-sonnet-20250219",
+      "claude-3-5-sonnet-20241022",
+      "claude-3-5-haiku-20241022",
+      "claude-3-opus-20240229"
+    ),
+    docsUrl = "https://console.anthropic.com/settings/keys",
+    defaultCapabilities = "Hybrid Reasoning, Superior Coding, Artifacts"
   ),
   GROQ(
     displayName = "Groq LPU",
     defaultBaseUrl = "https://api.groq.com/openai/v1",
     defaultModel = "llama-3.3-70b-versatile",
-    defaultModels = listOf("llama-3.3-70b-versatile", "llama-3.1-8b-instant"),
-    docsUrl = "https://console.groq.com/keys"
+    verifiedModels = listOf(
+      "llama-3.3-70b-versatile",
+      "llama-3.1-8b-instant",
+      "qwen-2.5-coder-32b",
+      "deepseek-r1-distill-llama-70b"
+    ),
+    docsUrl = "https://console.groq.com/keys",
+    defaultCapabilities = "Ultra-Fast Inference (500+ tok/s), Open Models"
   ),
   CUSTOM_COMPATIBLE(
     displayName = "Custom Compatible API",
     defaultBaseUrl = "http://10.0.2.2:11434/v1",
     defaultModel = "default",
-    defaultModels = listOf("default", "custom-model"),
-    docsUrl = "https://ollama.com"
+    verifiedModels = listOf(
+      "default",
+      "qwen2.5-coder",
+      "llama3.2",
+      "deepseek-r1:7b"
+    ),
+    docsUrl = "https://ollama.com",
+    defaultCapabilities = "Self-Hosted, Ollama, vLLM, LM Studio, Private"
   )
 }
 
@@ -98,7 +144,9 @@ data class ApiProviderConfig(
   val isEnabled: Boolean = false,
   val isDefault: Boolean = false,
   val lastTestedStatus: String? = null,
-  val lastTestedSuccess: Boolean? = null
+  val lastTestedSuccess: Boolean? = null,
+  val dynamicModels: List<String> = emptyList(),
+  val capabilities: String = providerType.defaultCapabilities
 )
 
 enum class MessageSender {
@@ -115,7 +163,7 @@ data class AgentToolAction(
   val command: String? = null,
   val requiresApproval: Boolean = false,
   val isApproved: Boolean = false,
-  val status: String = "PENDING" // PENDING, EXECUTED, REJECTED, FAILED
+  val status: String = "PENDING"
 )
 
 data class ChatMessage(
@@ -125,7 +173,8 @@ data class ChatMessage(
   val toolAction: AgentToolAction? = null,
   val timestamp: Long = System.currentTimeMillis(),
   val isStreaming: Boolean = false,
-  val error: String? = null
+  val error: String? = null,
+  val providerUsed: String? = null
 )
 
 enum class TerminalEntryType {
@@ -151,7 +200,7 @@ data class EditorTab(
 data class BuildWorkflowInfo(
   val repoName: String = "my-altron-app",
   val branch: String = "main",
-  val workflowFilePath: String = ".github/workflows/android-build.yml",
-  val lastArtifactName: String = "AltronCode-Debug-APK.apk",
+  val workflowFilePath: String = ".github/workflows/build-apk.yml",
+  val lastArtifactName: String = "app-debug.apk",
   val status: String = "Ready to Export"
 )

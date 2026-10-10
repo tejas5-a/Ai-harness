@@ -9,7 +9,7 @@ import com.example.data.model.ProviderType
 class ApiKeyRepository(context: Context) {
 
   private val prefs: SharedPreferences =
-    context.getSharedPreferences("altron_api_providers_v2", Context.MODE_PRIVATE)
+    context.getSharedPreferences("altron_api_providers_v3", Context.MODE_PRIVATE)
 
   fun getAllProviders(): List<ApiProviderConfig> {
     return ProviderType.values().map { type ->
@@ -38,6 +38,14 @@ class ApiKeyRepository(context: Context) {
     val lastStatus = prefs.getString("status_${type.name}", null)
     val lastSuccess = if (prefs.contains("success_${type.name}")) prefs.getBoolean("success_${type.name}", false) else null
 
+    // Load any dynamically fetched models cached for this provider
+    val dynamicModelsRaw = prefs.getString("dynamic_models_${type.name}", "") ?: ""
+    val dynamicModels = if (dynamicModelsRaw.isNotBlank()) {
+      dynamicModelsRaw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    } else {
+      emptyList()
+    }
+
     return ApiProviderConfig(
       providerType = type,
       apiKey = defaultApiKey,
@@ -46,7 +54,9 @@ class ApiKeyRepository(context: Context) {
       isEnabled = isEnabled,
       isDefault = isDefault,
       lastTestedStatus = lastStatus,
-      lastTestedSuccess = lastSuccess
+      lastTestedSuccess = lastSuccess,
+      dynamicModels = dynamicModels,
+      capabilities = type.defaultCapabilities
     )
   }
 
@@ -61,6 +71,26 @@ class ApiKeyRepository(context: Context) {
     if (config.isDefault) {
       setDefaultProvider(config.providerType)
     }
+  }
+
+  fun saveFetchedModels(type: ProviderType, models: List<String>) {
+    if (models.isNotEmpty()) {
+      prefs.edit()
+        .putString("dynamic_models_${type.name}", models.joinToString(","))
+        .apply()
+    }
+  }
+
+  fun clearProviderConfig(type: ProviderType) {
+    prefs.edit()
+      .remove("key_${type.name}")
+      .remove("url_${type.name}")
+      .remove("model_${type.name}")
+      .remove("enabled_${type.name}")
+      .remove("status_${type.name}")
+      .remove("success_${type.name}")
+      .remove("dynamic_models_${type.name}")
+      .apply()
   }
 
   fun setDefaultProvider(type: ProviderType) {

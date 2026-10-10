@@ -22,10 +22,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -55,7 +56,6 @@ import com.example.data.model.ChatMessage
 import com.example.data.model.MessageSender
 import com.example.ui.components.AltronGlassCard
 import com.example.ui.components.AltronPrimaryButton
-import com.example.ui.components.AltronSecondaryButton
 import com.example.ui.components.PulsingAgentStatus
 import com.example.ui.components.StatusBadge
 import com.example.ui.navigation.Screen
@@ -65,10 +65,10 @@ import com.example.ui.theme.AltronOrangeBright
 import com.example.ui.theme.AltronOrangeRim
 import com.example.ui.theme.Graphite700
 import com.example.ui.theme.Graphite800
-import com.example.ui.theme.Graphite850
 import com.example.ui.theme.Graphite950
 import com.example.ui.theme.TerminalCyan
 import com.example.ui.theme.TerminalGreen
+import com.example.ui.theme.TerminalRed
 import com.example.ui.viewmodel.AltronViewModel
 
 @Composable
@@ -84,7 +84,7 @@ fun AiAgentScreen(
   var inputPrompt by remember { mutableStateOf("") }
   val listState = rememberLazyListState()
 
-  LaunchedEffect(messages.size) {
+  LaunchedEffect(messages.size, messages.lastOrNull()?.content?.length) {
     if (messages.isNotEmpty()) {
       listState.animateScrollToItem(messages.size - 1)
     }
@@ -194,20 +194,44 @@ fun AiAgentScreen(
             modifier = Modifier
               .fillMaxWidth()
               .padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
           ) {
-            CircularProgressIndicator(
-              modifier = Modifier.size(18.dp),
-              color = AltronOrange,
-              strokeWidth = 2.dp
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-              text = "ALTRON reasoning & generating response...",
-              fontSize = 12.sp,
-              color = AltronOrangeBright,
-              fontFamily = FontFamily.Monospace
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                color = AltronOrange,
+                strokeWidth = 2.dp
+              )
+              Spacer(modifier = Modifier.width(10.dp))
+              Text(
+                text = "Streaming from ${activeProvider.selectedModel}...",
+                fontSize = 11.5.sp,
+                color = AltronOrangeBright,
+                fontFamily = FontFamily.Monospace
+              )
+            }
+
+            // Stop generation button
+            Box(
+              modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .background(TerminalRed.copy(alpha = 0.2f))
+                .border(0.8.dp, TerminalRed.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                .clickable { viewModel.cancelAgent() }
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                  imageVector = Icons.Default.Stop,
+                  contentDescription = "Stop",
+                  tint = TerminalRed,
+                  modifier = Modifier.size(12.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Stop", fontSize = 10.sp, color = TerminalRed, fontWeight = FontWeight.Bold)
+              }
+            }
           }
         }
       }
@@ -240,27 +264,44 @@ fun AiAgentScreen(
         )
       )
 
-      IconButton(
-        onClick = {
-          if (inputPrompt.isNotBlank() && !isThinking) {
-            val text = inputPrompt
-            inputPrompt = ""
-            viewModel.sendAgentMessage(text)
-          }
-        },
-        enabled = inputPrompt.isNotBlank() && !isThinking,
-        modifier = Modifier
-          .size(48.dp)
-          .clip(CircleShape)
-          .background(if (inputPrompt.isNotBlank() && !isThinking) AltronOrange else Graphite800)
-          .testTag("ai_agent_send_btn")
-      ) {
-        Icon(
-          imageVector = Icons.Default.Send,
-          contentDescription = "Send",
-          tint = if (inputPrompt.isNotBlank() && !isThinking) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.size(20.dp)
-        )
+      if (isThinking) {
+        IconButton(
+          onClick = { viewModel.cancelAgent() },
+          modifier = Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(TerminalRed.copy(alpha = 0.8f))
+        ) {
+          Icon(
+            imageVector = Icons.Default.Stop,
+            contentDescription = "Stop",
+            tint = Color.White,
+            modifier = Modifier.size(20.dp)
+          )
+        }
+      } else {
+        IconButton(
+          onClick = {
+            if (inputPrompt.isNotBlank()) {
+              val text = inputPrompt
+              inputPrompt = ""
+              viewModel.sendAgentMessage(text)
+            }
+          },
+          enabled = inputPrompt.isNotBlank(),
+          modifier = Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(if (inputPrompt.isNotBlank()) AltronOrange else Graphite800)
+            .testTag("ai_agent_send_btn")
+        ) {
+          Icon(
+            imageVector = Icons.AutoMirrored.Filled.Send,
+            contentDescription = "Send",
+            tint = if (inputPrompt.isNotBlank()) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+          )
+        }
       }
     }
   }
@@ -298,34 +339,49 @@ fun ChatMessageBubble(
       ) {
         Column(modifier = Modifier.padding(14.dp)) {
           Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(bottom = 6.dp)
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
           ) {
-            Box(
-              modifier = Modifier
-                .size(22.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(AltronOrange),
-              contentAlignment = Alignment.Center
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              modifier = Modifier.padding(bottom = 6.dp)
             ) {
-              Icon(
-                imageVector = Icons.Default.Psychology,
-                contentDescription = null,
-                tint = Color.Black,
-                modifier = Modifier.size(14.dp)
+              Box(
+                modifier = Modifier
+                  .size(22.dp)
+                  .clip(RoundedCornerShape(6.dp))
+                  .background(AltronOrange),
+                contentAlignment = Alignment.Center
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Psychology,
+                  contentDescription = null,
+                  tint = Color.Black,
+                  modifier = Modifier.size(14.dp)
+                )
+              }
+              Spacer(modifier = Modifier.width(8.dp))
+              Text(
+                text = "ALTRON AGENT",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = AltronOrangeBright
               )
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-              text = "ALTRON AGENT",
-              fontSize = 11.sp,
-              fontWeight = FontWeight.Bold,
-              color = AltronOrangeBright
-            )
+
+            if (message.providerUsed != null) {
+              Text(
+                text = message.providerUsed,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontFamily = FontFamily.Monospace
+              )
+            }
           }
 
           Text(
-            text = message.content,
+            text = message.content.ifEmpty { "Generating response..." },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface
           )
