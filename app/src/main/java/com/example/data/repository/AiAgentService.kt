@@ -45,8 +45,12 @@ class AiAgentService {
     try {
       when (config.providerType) {
         ProviderType.GEMINI -> {
-          val url = "${config.baseUrl.trimEnd('/')}/v1beta/models/${config.selectedModel}?key=${config.apiKey}"
-          val request = Request.Builder().url(url).get().build()
+          val url = "${config.baseUrl.trimEnd('/')}/v1beta/models/${config.selectedModel}:generateContent"
+          val request = Request.Builder()
+            .url(url)
+            .addHeader("x-goog-api-key", config.apiKey)
+            .get()
+            .build()
           client.newCall(request).execute().use { response ->
             if (response.isSuccessful) {
               true to "Connected successfully to ${config.selectedModel} (HTTP 200 OK)"
@@ -560,7 +564,7 @@ Keep responses concise, clear, and optimized for mobile screens.
     systemInstruction: String,
     history: List<ChatMessage>
   ): String {
-    val url = "${config.baseUrl.trimEnd('/')}/v1beta/models/${config.selectedModel}:generateContent?key=${config.apiKey}"
+    val url = "${config.baseUrl.trimEnd('/')}/v1beta/models/${config.selectedModel}:generateContent"
     val contentsArray = JSONArray()
 
     history.takeLast(6).forEach { msg ->
@@ -589,6 +593,7 @@ Keep responses concise, clear, and optimized for mobile screens.
 
     val request = Request.Builder()
       .url(url)
+      .addHeader("x-goog-api-key", config.apiKey)
       .post(bodyJson.toString().toRequestBody(jsonMediaType))
       .build()
 
