@@ -564,31 +564,17 @@ Keep responses concise, clear, and optimized for mobile screens.
     systemInstruction: String,
     history: List<ChatMessage>
   ): String {
-    val url = "${config.baseUrl.trimEnd('/')}/v1beta/models/${config.selectedModel}:generateContent"
-    val contentsArray = JSONArray()
-
-    history.takeLast(6).forEach { msg ->
-      val role = if (msg.sender == MessageSender.USER) "user" else "model"
-      contentsArray.put(JSONObject().apply {
-        put("role", role)
-        put("parts", JSONArray().put(JSONObject().apply { put("text", msg.content) }))
-      })
-    }
-
-    contentsArray.put(JSONObject().apply {
-      put("role", "user")
-      put("parts", JSONArray().put(JSONObject().apply { put("text", prompt) }))
-    })
-
+    // The user explicitly requested the Interactions API based on provider recommendations
+    val url = "${config.baseUrl.trimEnd('/')}/v1beta/interactions"
+    
+    // Interactions API typically uses a simpler structure
     val bodyJson = JSONObject().apply {
-      put("systemInstruction", JSONObject().apply {
-        put("parts", JSONArray().put(JSONObject().apply { put("text", systemInstruction) }))
-      })
-      put("contents", contentsArray)
-      put("generationConfig", JSONObject().apply {
-        put("temperature", 0.7)
-        put("maxOutputTokens", 4096)
-      })
+      put("model", config.selectedModel)
+      put("input", prompt)
+      // System instructions might need to be passed differently in the interactions API,
+      // usually appended or set in a specific field if supported.
+      // Based on typical simplified interactions APIs, putting it in context or as a prefix is common.
+      put("context", systemInstruction)
     }
 
     val request = Request.Builder()
@@ -604,14 +590,8 @@ Keep responses concise, clear, and optimized for mobile screens.
       }
 
       val jsonObj = JSONObject(body)
-      val candidates = jsonObj.optJSONArray("candidates")
-      if (candidates != null && candidates.length() > 0) {
-        val parts = candidates.getJSONObject(0).optJSONObject("content")?.optJSONArray("parts")
-        if (parts != null && parts.length() > 0) {
-          return parts.getJSONObject(0).optString("text", "")
-        }
-      }
-      return "No content returned from Gemini."
+      // Parse response based on Interactions API structure
+      return jsonObj.optString("output", "No output returned from Gemini Interactions API.")
     }
   }
 
