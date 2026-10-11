@@ -328,7 +328,7 @@ fun ProjectsScreen(
               viewModel.navigateToDirectory(projectFile.file)
             } else {
               viewModel.openFile(projectFile.file)
-              viewModel.setScreen(Screen.EDITOR)
+              // viewModel.setScreen(Screen.EDITOR)
             }
           },
           onDelete = {

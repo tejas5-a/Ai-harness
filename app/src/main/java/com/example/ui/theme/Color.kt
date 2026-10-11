@@ -18,9 +18,11 @@ val Graphite400 = Color(0xFF737373)
 
 // Light (White Palette)
 val WhiteBase = Color(0xFFFFFFFF)
-val WhiteSurface = Color(0xFFF9F9F9)
-val WhiteSecondary = Color(0xFFF0F0F0)
+val WhiteSurface = Color(0xFFFFFFFF)
+val WhiteSecondary = Color(0xFFFFF7F1) // Secondary background
 val WhiteText = Color(0xFF171717)
+val BorderColor = Color(0xFFF0E3D9) // Border
+val SecondaryText = Color(0xFF737373)
 
 // Aliases for Type.kt compatibility
 val GraphiteWhite = WhiteBase
@@ -40,5 +42,3 @@ val AltronOrangeGlow = PrimaryOrange.copy(alpha = 0.3f)
 val AltronOrangeRim = PrimaryOrange.copy(alpha = 0.5f)
 val TerminalGreen = SuccessGreen
 val TerminalRed = ErrorRed
-val BorderColor = PrimaryOrange.copy(alpha = 0.2f)
-val SecondaryText = Graphite400

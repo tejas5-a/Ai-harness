@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.material3.CircularProgressIndicator
@@ -68,6 +69,8 @@ import com.example.ui.navigation.Screen
 import com.example.ui.theme.AltronAmber
 import com.example.ui.theme.AltronOrange
 import com.example.ui.theme.AltronOrangeBright
+import com.example.ui.theme.SecondaryText
+import com.example.ui.theme.WhiteSecondary
 import com.example.ui.theme.AltronOrangeRim
 import com.example.ui.theme.Graphite700
 import com.example.ui.theme.Graphite800
@@ -133,56 +136,43 @@ fun AiAgentScreen(
       .fillMaxSize()
       .padding(horizontal = 14.dp, vertical = 8.dp)
   ) {
-    AltronGlassCard(
-      modifier = Modifier
-        .fillMaxWidth()
-        .testTag("ai_agent_header_card")
-    ) {
-      Row(
+/*
+    // Compact Header
+    Row(
         modifier = Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 14.dp, vertical = 10.dp),
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
-      ) {
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-          PulsingAgentStatus(isThinking = isThinking)
-          Spacer(modifier = Modifier.width(8.dp))
-          Text(
-            text = "${activeProject?.name ?: "No Project"} • ${activeProvider.selectedModel}",
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-          )
+            Text(
+                text = "ALTRON",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = AltronOrange
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = activeProvider.selectedModel,
+                fontSize = 12.sp,
+                color = SecondaryText
+            )
         }
         
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(
-              onClick = { viewModel.setScreen(Screen.EDITOR) },
-              modifier = Modifier.size(36.dp)
-            ) {
-              Icon(
-                imageVector = Icons.Default.Code,
-                contentDescription = "View Files",
-                tint = AltronOrange,
-                modifier = Modifier.size(18.dp)
-              )
-            }
-            Spacer(modifier = Modifier.width(4.dp))
-            IconButton(
-              onClick = { viewModel.setScreen(Screen.PROVIDERS) },
-              modifier = Modifier.size(36.dp)
-            ) {
-              Icon(
+        IconButton(
+            onClick = { viewModel.setScreen(Screen.PROVIDERS) },
+            modifier = Modifier.size(32.dp)
+        ) {
+            Icon(
                 imageVector = Icons.Default.Settings,
-                contentDescription = "Configure API",
-                tint = AltronOrange,
-                modifier = Modifier.size(18.dp)
-              )
-            }
+                contentDescription = "Settings",
+                tint = SecondaryText,
+                modifier = Modifier.size(20.dp)
+            )
         }
-      }
     }
+*/
 
     Spacer(modifier = Modifier.height(10.dp))
     
@@ -377,14 +367,35 @@ fun AiAgentScreen(
 @Composable
 fun CopyButton(text: String) {
     val clipboardManager = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+
+    // Strip markdown fences for copying only the code
+    val codeOnly = text.replace(Regex("```[a-zA-Z]*\\n?([\\s\\S]*?)```"), "$1").trim()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    LaunchedEffect(copied) {
+        if (copied) {
+            kotlinx.coroutines.delay(2000)
+            copied = false
+        }
+    }
+
     IconButton(
-        onClick = { clipboardManager.setText(AnnotatedString(text)) },
+        onClick = {
+            try {
+                clipboardManager.setText(AnnotatedString(codeOnly))
+                copied = true
+                android.widget.Toast.makeText(context, "Copied!", android.widget.Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(context, "Failed to copy: ${e.localizedMessage}", android.widget.Toast.LENGTH_LONG).show()
+            }
+        },
         modifier = Modifier.size(24.dp)
     ) {
         Icon(
-            imageVector = Icons.Default.ContentCopy,
-            contentDescription = "Copy",
-            tint = AltronOrange,
+            imageVector = if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
+            contentDescription = if (copied) "Copied!" else "Copy",
+            tint = if (copied) Color.Green else AltronOrange,
             modifier = Modifier.size(16.dp)
         )
     }
@@ -403,81 +414,31 @@ fun ChatMessageBubble(
     horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
   ) {
     if (isUser) {
-      Box(
-        modifier = Modifier
-          .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 4.dp, bottomStart = 16.dp, bottomEnd = 16.dp))
-          .background(AltronOrange.copy(alpha = 0.2f))
-          .border(1.dp, AltronOrange.copy(alpha = 0.4f), RoundedCornerShape(topStart = 16.dp, topEnd = 4.dp, bottomStart = 16.dp, bottomEnd = 16.dp))
-          .padding(14.dp)
-      ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-              text = message.content,
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurface,
-              modifier = Modifier.weight(1f)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            CopyButton(message.content)
-        }
-      }
+      Text(
+          text = message.content,
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurface,
+          modifier = Modifier
+              .align(Alignment.End)
+              .background(WhiteSecondary, RoundedCornerShape(16.dp))
+              .padding(12.dp)
+      )
     } else {
-      AltronGlassCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
-      ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            Row(
-              verticalAlignment = Alignment.CenterVertically,
-              modifier = Modifier.padding(bottom = 6.dp)
-            ) {
-              Box(
-                modifier = Modifier
-                  .size(22.dp)
-                  .clip(RoundedCornerShape(6.dp))
-                  .background(AltronOrange),
-                contentAlignment = Alignment.Center
-              ) {
-                Icon(
-                  imageVector = Icons.Default.Psychology,
-                  contentDescription = null,
-                  tint = Color.Black,
-                  modifier = Modifier.size(14.dp)
-                )
-              }
-              Spacer(modifier = Modifier.width(8.dp))
-              Text(
-                text = "ALTRON AGENT",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = AltronOrangeBright
-              )
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (message.providerUsed != null) {
-                  Text(
-                    text = message.providerUsed,
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontFamily = FontFamily.Monospace
-                  )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                CopyButton(message.content)
-            }
-          }
-
-          Text(
-            text = message.content.ifEmpty { "Generating response..." },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface
-          )
+        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Text(
+                text = "ALTRON",
+                fontSize = 10.sp,
+                color = AltronOrange,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = message.content.ifEmpty { "..." },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            // ... (keep tool action logic)
+        }
+    }
 
           // Tool Action Card if AI proposed creating a file or running a command
           if (message.toolAction != null) {

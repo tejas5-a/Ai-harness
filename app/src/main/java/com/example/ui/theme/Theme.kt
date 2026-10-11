@@ -20,8 +20,8 @@ private val LightColorScheme = lightColorScheme(
   surface = WhiteSurface,
   onSurface = WhiteText,
   surfaceVariant = WhiteSecondary,
-  onSurfaceVariant = Graphite400,
-  outline = Graphite200,
+  onSurfaceVariant = SecondaryText,
+  outline = BorderColor,
   error = ErrorRed
 )
 

@@ -30,13 +30,7 @@ import com.example.ui.navigation.AltronBottomNavBar
 import com.example.ui.navigation.Screen
 import com.example.ui.screens.AiAgentScreen
 import com.example.ui.screens.ApiProvidersScreen
-import com.example.ui.screens.BuildCenterScreen
-import com.example.ui.screens.ConversationsScreen
-import com.example.ui.screens.DashboardScreen
-import com.example.ui.screens.EditorScreen
 import com.example.ui.screens.ProjectsScreen
-import com.example.ui.screens.TerminalScreen
-import com.example.ui.screens.WebPreviewScreen
 import com.example.ui.theme.AltronTheme
 import com.example.ui.viewmodel.AltronViewModel
 
@@ -61,10 +55,10 @@ class MainActivity : ComponentActivity() {
         }
       }
 
-      // BackHandler for sub-screens to return to Home dashboard
-      if (currentScreen != Screen.HOME) {
+      // BackHandler for sub-screens to return to Chat screen
+      if (currentScreen != Screen.CHAT) {
         BackHandler {
-          viewModel.setScreen(Screen.HOME)
+          viewModel.setScreen(Screen.CHAT)
         }
       }
 
@@ -75,10 +69,7 @@ class MainActivity : ComponentActivity() {
           topBar = {
             AltronTopBar(
               activeProject = activeProject,
-              isDarkTheme = isDarkTheme,
-              onToggleTheme = { viewModel.toggleTheme() },
-              onSelectProjectClicked = { viewModel.setScreen(Screen.PROJECTS) },
-              onRunClicked = { viewModel.setScreen(Screen.TERMINAL) }
+              onMenuClicked = { viewModel.setScreen(Screen.SETTINGS) }
             )
           },
           bottomBar = {
@@ -100,15 +91,9 @@ class MainActivity : ComponentActivity() {
               label = "ScreenTransition"
             ) { target ->
               when (target) {
-                Screen.HOME -> DashboardScreen(viewModel = viewModel)
+                Screen.CHAT -> AiAgentScreen(viewModel = viewModel)
                 Screen.PROJECTS -> ProjectsScreen(viewModel = viewModel)
-                Screen.EDITOR -> EditorScreen(viewModel = viewModel)
-                Screen.AGENT -> AiAgentScreen(viewModel = viewModel)
-                Screen.CONVERSATIONS -> ConversationsScreen(viewModel = viewModel)
-                Screen.TERMINAL -> TerminalScreen(viewModel = viewModel)
-                Screen.PROVIDERS -> ApiProvidersScreen(viewModel = viewModel)
-                Screen.GITHUB_BUILD -> BuildCenterScreen(viewModel = viewModel)
-                Screen.PREVIEW -> WebPreviewScreen(viewModel = viewModel)
+                Screen.SETTINGS -> ApiProvidersScreen(viewModel = viewModel)
               }
             }
 

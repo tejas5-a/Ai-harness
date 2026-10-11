@@ -54,15 +54,9 @@ enum class Screen(
   val icon: ImageVector,
   val testTag: String
 ) {
-  HOME("home", "Home", Icons.Default.Home, "nav_home"),
+  CHAT("chat", "Chat", Icons.Default.Psychology, "nav_chat"),
   PROJECTS("projects", "Projects", Icons.Default.Folder, "nav_projects"),
-  EDITOR("editor", "Editor", Icons.Default.Code, "nav_editor"),
-  AGENT("agent", "AI Agent", Icons.Default.Psychology, "nav_agent"),
-  CONVERSATIONS("conversations", "Chats", Icons.Default.List, "nav_chats"),
-  TERMINAL("terminal", "Terminal", Icons.Default.Terminal, "nav_terminal"),
-  PROVIDERS("providers", "API Panel", Icons.Default.Settings, "nav_providers"),
-  GITHUB_BUILD("build", "Build Center", Icons.Default.Build, "nav_build"),
-  PREVIEW("preview", "Web Preview", Icons.Default.Language, "nav_preview")
+  SETTINGS("settings", "Settings", Icons.Default.Settings, "nav_settings")
 }
 
 @Composable

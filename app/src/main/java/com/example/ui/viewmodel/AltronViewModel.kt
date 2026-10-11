@@ -34,7 +34,7 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
   private val terminalManager = TerminalManager()
 
   // Screen & UI
-  private val _currentScreen = MutableStateFlow(Screen.HOME)
+  private val _currentScreen = MutableStateFlow(Screen.CHAT)
   val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
 
   private val _isDarkTheme = MutableStateFlow(true)
