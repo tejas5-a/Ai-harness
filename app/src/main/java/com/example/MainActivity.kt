@@ -86,9 +86,9 @@ class MainActivity : ComponentActivity() {
               }
 
               Scaffold(
-                modifier = Modifier.fillMaxHeight().weight(1f),
-                containerColor = Color.Transparent, // Allows ambient Aurora gradients through
-                contentWindowInsets = WindowInsets(0, 0, 0, 0), // Prevents double-inset application on child screens
+    modifier = Modifier.fillMaxHeight().weight(1f),
+    containerColor = Color.Transparent,
+    contentWindowInsets = WindowInsets(0, 0, 0, 0),, // Prevents double-inset application on child screens
                 snackbarHost = { SnackbarHost(snackbarHostState) },
                 topBar = {
                   AltronTopBar(
