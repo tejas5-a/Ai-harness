@@ -7,50 +7,37 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val DarkColorScheme = darkColorScheme(
-  primary = AltronOrange,
-  onPrimary = Color.Black,
-  primaryContainer = AltronOrangeMuted,
-  onPrimaryContainer = GraphiteWhite,
-  secondary = AltronAmber,
-  onSecondary = Color.Black,
-  secondaryContainer = Graphite800,
-  onSecondaryContainer = Graphite100,
-  tertiary = TerminalCyan,
-  onTertiary = Color.Black,
-  background = Graphite950,
-  onBackground = GraphiteWhite,
-  surface = Graphite900,
-  onSurface = Graphite100,
-  surfaceVariant = Graphite850,
-  onSurfaceVariant = Graphite200,
-  outline = Graphite700,
-  outlineVariant = Graphite800,
-  error = TerminalRed,
-  onError = Color.White
+// Default theme is now Premium Orange-and-White (Light) and Graphite/Orange (Dark)
+private val LightColorScheme = lightColorScheme(
+  primary = PrimaryOrange,
+  onPrimary = Color.White,
+  primaryContainer = AccentOrange,
+  onPrimaryContainer = Color.Black,
+  secondary = DeepOrange,
+  onSecondary = Color.White,
+  background = WhiteBase,
+  onBackground = WhiteText,
+  surface = WhiteSurface,
+  onSurface = WhiteText,
+  surfaceVariant = WhiteSecondary,
+  onSurfaceVariant = Graphite400,
+  outline = Graphite200,
+  error = ErrorRed
 )
 
-private val LightColorScheme = lightColorScheme(
-  primary = AltronOrange,
-  onPrimary = Color.White,
-  primaryContainer = Color(0xFFFFEAD6),
-  onPrimaryContainer = Color(0xFF6B2600),
-  secondary = AltronAmber,
-  onSecondary = Color.Black,
-  secondaryContainer = LightSurfaceVariant,
-  onSecondaryContainer = LightTextPrimary,
-  tertiary = TerminalCyan,
-  onTertiary = Color.White,
-  background = LightBg,
-  onBackground = LightTextPrimary,
-  surface = LightSurface,
-  onSurface = LightTextPrimary,
-  surfaceVariant = LightSurfaceVariant,
-  onSurfaceVariant = LightTextSecondary,
-  outline = LightBorder,
-  outlineVariant = Color(0xFFE2E8F0),
-  error = TerminalRed,
-  onError = Color.White
+private val DarkColorScheme = darkColorScheme(
+  primary = PrimaryOrange,
+  onPrimary = Color.Black,
+  primaryContainer = DeepOrange,
+  onPrimaryContainer = Color.White,
+  background = Graphite900,
+  onBackground = Color.White,
+  surface = Graphite950,
+  onSurface = Color.White,
+  surfaceVariant = Graphite850,
+  onSurfaceVariant = Graphite400,
+  outline = Graphite700,
+  error = ErrorRed
 )
 
 @Composable

@@ -250,13 +250,15 @@ fun TerminalScreen(
 
 @Composable
 fun TerminalEntryLine(entry: TerminalEntry) {
-  val (color, prefix) = when (entry.type) {
+  val result: Pair<Color, String> = when (entry.type) {
     TerminalEntryType.COMMAND_INPUT -> TerminalCyan to ""
     TerminalEntryType.STDOUT -> Color(0xFFE2E8F0) to ""
     TerminalEntryType.STDERR -> TerminalRed to "ERR: "
     TerminalEntryType.SYSTEM_INFO -> TerminalYellow to "ℹ "
     TerminalEntryType.EXIT_CODE -> TerminalGreen to ""
   }
+  val color = result.first
+  val prefix = result.second
 
   Text(
     text = "$prefix${entry.text}",

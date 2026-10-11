@@ -196,6 +196,15 @@ data class EditorTab(
   val isModified: Boolean = false
 )
 
+data class Conversation(
+  val id: String = UUID.randomUUID().toString(),
+  val title: String,
+  val createdAt: Long = System.currentTimeMillis(),
+  val lastModified: Long = System.currentTimeMillis(),
+  val isPinned: Boolean = false,
+  val projectId: String
+)
+
 data class BuildWorkflowInfo(
   val repoName: String = "my-altron-app",
   val branch: String = "main",

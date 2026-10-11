@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Terminal
@@ -57,6 +58,7 @@ enum class Screen(
   PROJECTS("projects", "Projects", Icons.Default.Folder, "nav_projects"),
   EDITOR("editor", "Editor", Icons.Default.Code, "nav_editor"),
   AGENT("agent", "AI Agent", Icons.Default.Psychology, "nav_agent"),
+  CONVERSATIONS("conversations", "Chats", Icons.Default.List, "nav_chats"),
   TERMINAL("terminal", "Terminal", Icons.Default.Terminal, "nav_terminal"),
   PROVIDERS("providers", "API Panel", Icons.Default.Settings, "nav_providers"),
   GITHUB_BUILD("build", "Build Center", Icons.Default.Build, "nav_build"),

@@ -112,23 +112,37 @@ fun AiAgentScreen(
           PulsingAgentStatus(isThinking = isThinking)
           Spacer(modifier = Modifier.width(8.dp))
           Text(
-            text = "${activeProvider.providerType.displayName} • ${activeProvider.selectedModel}",
+            text = "${activeProject?.name ?: "No Project"} • ${activeProvider.selectedModel}",
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurfaceVariant
           )
         }
-
-        IconButton(
-          onClick = { viewModel.setScreen(Screen.PROVIDERS) },
-          modifier = Modifier.size(36.dp)
-        ) {
-          Icon(
-            imageVector = Icons.Default.Settings,
-            contentDescription = "Configure API",
-            tint = AltronOrange,
-            modifier = Modifier.size(18.dp)
-          )
+        
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+              onClick = { viewModel.setScreen(Screen.EDITOR) },
+              modifier = Modifier.size(36.dp)
+            ) {
+              Icon(
+                imageVector = Icons.Default.Code,
+                contentDescription = "View Files",
+                tint = AltronOrange,
+                modifier = Modifier.size(18.dp)
+              )
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            IconButton(
+              onClick = { viewModel.setScreen(Screen.PROVIDERS) },
+              modifier = Modifier.size(36.dp)
+            ) {
+              Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Configure API",
+                tint = AltronOrange,
+                modifier = Modifier.size(18.dp)
+              )
+            }
         }
       }
     }

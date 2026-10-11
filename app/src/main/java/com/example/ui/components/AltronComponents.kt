@@ -57,6 +57,8 @@ import com.example.ui.theme.AltronOrange
 import com.example.ui.theme.AltronOrangeBright
 import com.example.ui.theme.AltronOrangeGlow
 import com.example.ui.theme.AltronOrangeRim
+import com.example.ui.theme.PrimaryOrange
+import com.example.ui.theme.BorderColor
 import com.example.ui.theme.Graphite700
 import com.example.ui.theme.Graphite800
 import com.example.ui.theme.Graphite850
@@ -69,8 +71,8 @@ fun AltronGlassCard(
   modifier: Modifier = Modifier,
   shape: Shape = RoundedCornerShape(16.dp),
   hasGlowBorder: Boolean = false,
-  backgroundColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f),
-  borderColor: Color = if (hasGlowBorder) AltronOrangeRim else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+  backgroundColor: Color = MaterialTheme.colorScheme.surface,
+  borderColor: Color = if (hasGlowBorder) PrimaryOrange.copy(alpha = 0.5f) else BorderColor,
   onClick: (() -> Unit)? = null,
   content: @Composable () -> Unit
 ) {
@@ -91,21 +93,9 @@ fun AltronGlassCard(
       ),
     shape = shape,
     color = backgroundColor,
-    tonalElevation = 4.dp
+    tonalElevation = 0.dp
   ) {
-    Box(
-      modifier = Modifier
-        .background(
-          brush = Brush.verticalGradient(
-            colors = listOf(
-              Color.White.copy(alpha = 0.04f),
-              Color.Transparent
-            )
-          )
-        )
-    ) {
-      content()
-    }
+    content()
   }
 }
 
@@ -120,39 +110,18 @@ fun AltronPrimaryButton(
 ) {
   Button(
     onClick = onClick,
-    modifier = modifier
-      .defaultMinSize(minHeight = 48.dp),
+    modifier = modifier.defaultMinSize(minHeight = 48.dp),
     enabled = enabled && !isLoading,
     colors = ButtonDefaults.buttonColors(
-      containerColor = AltronOrange,
-      contentColor = Color.Black,
-      disabledContainerColor = Graphite800,
-      disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+      containerColor = PrimaryOrange,
+      contentColor = Color.White
     ),
-    shape = RoundedCornerShape(12.dp),
-    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
+    shape = RoundedCornerShape(12.dp)
   ) {
-    Row(
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.Center
-    ) {
-      if (icon != null) {
-        Icon(
-          imageVector = icon,
-          contentDescription = null,
-          modifier = Modifier.size(18.dp),
-          tint = if (enabled) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-      }
-      Text(
+    Text(
         text = if (isLoading) "Processing..." else text,
-        style = MaterialTheme.typography.labelLarge.copy(
-          fontWeight = FontWeight.Bold,
-          color = if (enabled) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant
-        )
-      )
-    }
+        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+    )
   }
 }
 

@@ -58,6 +58,9 @@ import com.example.ui.theme.AltronOrange
 import com.example.ui.theme.AltronOrangeBright
 import com.example.ui.theme.AltronOrangeGlow
 import com.example.ui.theme.AltronOrangeRim
+import com.example.ui.theme.PrimaryOrange
+import com.example.ui.theme.AccentOrange
+import com.example.ui.theme.SecondaryText
 import com.example.ui.theme.Graphite400
 import com.example.ui.theme.Graphite950
 import com.example.ui.theme.TerminalCyan
@@ -83,7 +86,7 @@ fun DashboardScreen(
       .padding(16.dp),
     verticalArrangement = Arrangement.spacedBy(16.dp)
   ) {
-    // Hero Banner Card with glowing glass
+    // Hero Banner Card with refined aesthetic
     AltronGlassCard(
       modifier = Modifier
         .fillMaxWidth()
@@ -91,7 +94,7 @@ fun DashboardScreen(
       hasGlowBorder = true
     ) {
       Column(
-        modifier = Modifier.padding(20.dp)
+        modifier = Modifier.padding(24.dp)
       ) {
         Row(
           modifier = Modifier.fillMaxWidth(),
@@ -99,10 +102,10 @@ fun DashboardScreen(
           verticalAlignment = Alignment.CenterVertically
         ) {
           PulsingAgentStatus(isThinking = isAgentThinking)
-          StatusBadge(text = activeProvider.providerType.displayName, color = AltronOrange)
+          StatusBadge(text = activeProvider.providerType.displayName, color = PrimaryOrange)
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Text(
           text = "ALTRON CODE AI",
@@ -116,29 +119,28 @@ fun DashboardScreen(
         Text(
           text = "Your Phone. Your AI. Your Coding Studio.",
           style = MaterialTheme.typography.bodyMedium.copy(
-            color = AltronOrangeBright,
+            color = AccentOrange,
             fontWeight = FontWeight.SemiBold
           )
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Text(
           text = "Mobile-first on-device development workspace. Write code, leverage autonomous AI agents, execute terminal commands, and build APKs without a PC.",
           style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant
+          color = SecondaryText
         )
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Quick Action Row
         Row(
           modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(10.dp)
+          horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
           AltronPrimaryButton(
-            text = "AI Agent",
-            icon = Icons.Default.Psychology,
+            text = "Ask AI Agent",
             onClick = { viewModel.setScreen(Screen.AGENT) },
             modifier = Modifier
               .weight(1f)
@@ -147,7 +149,6 @@ fun DashboardScreen(
 
           AltronSecondaryButton(
             text = "Terminal",
-            icon = Icons.Default.Terminal,
             onClick = { viewModel.setScreen(Screen.TERMINAL) },
             modifier = Modifier
               .weight(1f)

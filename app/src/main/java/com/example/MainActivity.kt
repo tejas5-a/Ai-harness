@@ -31,6 +31,7 @@ import com.example.ui.navigation.Screen
 import com.example.ui.screens.AiAgentScreen
 import com.example.ui.screens.ApiProvidersScreen
 import com.example.ui.screens.BuildCenterScreen
+import com.example.ui.screens.ConversationsScreen
 import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.EditorScreen
 import com.example.ui.screens.ProjectsScreen
@@ -103,6 +104,7 @@ class MainActivity : ComponentActivity() {
                 Screen.PROJECTS -> ProjectsScreen(viewModel = viewModel)
                 Screen.EDITOR -> EditorScreen(viewModel = viewModel)
                 Screen.AGENT -> AiAgentScreen(viewModel = viewModel)
+                Screen.CONVERSATIONS -> ConversationsScreen(viewModel = viewModel)
                 Screen.TERMINAL -> TerminalScreen(viewModel = viewModel)
                 Screen.PROVIDERS -> ApiProvidersScreen(viewModel = viewModel)
                 Screen.GITHUB_BUILD -> BuildCenterScreen(viewModel = viewModel)
