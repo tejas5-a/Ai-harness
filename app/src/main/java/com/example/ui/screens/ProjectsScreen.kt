@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CreateNewFolder
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Button
+import com.example.ui.navigation.Screen
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -73,6 +75,7 @@ import com.example.data.model.ProjectFile
 import com.example.data.model.ProjectType
 import com.example.ui.components.AltronGlassCard
 import com.example.ui.components.AltronPrimaryButton
+import com.example.ui.components.DeleteFileConfirmationDialog
 import com.example.ui.components.StatusBadge
 import com.example.ui.theme.AltronAmber
 import com.example.ui.theme.BrandPrimaryOrange
@@ -108,6 +111,7 @@ fun ProjectsScreen(
   var showNewFileDialog by remember { mutableStateOf(false) }
   var showNewFolderDialog by remember { mutableStateOf(false) }
   var renamingFile by remember { mutableStateOf<File?>(null) }
+  var deletingFile by remember { mutableStateOf<File?>(null) }
   var viewingFileEditor by remember { mutableStateOf(false) }
 
   Column(
@@ -385,6 +389,22 @@ fun ProjectsScreen(
             modifier = Modifier.size(18.dp)
           )
         }
+
+        IconButton(
+          onClick = { viewModel.setScreen(Screen.TASKS) },
+          modifier = Modifier
+            .size(38.dp)
+            .background(LightSurface, RoundedCornerShape(8.dp))
+            .border(1.dp, LightBorder, RoundedCornerShape(8.dp))
+            .testTag("file_explorer_tasks_btn")
+        ) {
+          Icon(
+            imageVector = Icons.Default.Autorenew,
+            contentDescription = "Background Tasks",
+            tint = BrandPrimaryOrange,
+            modifier = Modifier.size(18.dp)
+          )
+        }
       }
     }
 
@@ -432,7 +452,7 @@ fun ProjectsScreen(
             renamingFile = projectFile.file
           },
           onDelete = {
-            viewModel.deleteFile(projectFile.file)
+            deletingFile = projectFile.file
           }
         )
       }
@@ -440,6 +460,21 @@ fun ProjectsScreen(
   }
 
   // Dialogs
+  if (deletingFile != null) {
+    val fileToDelete = deletingFile!!
+    val hasUnsavedEdits = activeTab?.file?.absolutePath == fileToDelete.absolutePath && isContentModified
+    DeleteFileConfirmationDialog(
+      fileName = fileToDelete.name,
+      hasUnsavedChanges = hasUnsavedEdits,
+      onConfirm = {
+        viewModel.deleteFile(fileToDelete)
+        deletingFile = null
+      },
+      onDismiss = {
+        deletingFile = null
+      }
+    )
+  }
   if (showNewProjectDialog) {
     NewProjectModal(
       onDismiss = { showNewProjectDialog = false },
@@ -550,24 +585,46 @@ fun FileItemRow(
 
       Row(verticalAlignment = Alignment.CenterVertically) {
         if (!projectFile.isDirectory) {
-          IconButton(onClick = onDownload, modifier = Modifier.size(32.dp)) {
+          IconButton(
+            onClick = onDownload,
+            modifier = Modifier
+              .size(36.dp)
+              .testTag("download_file_${projectFile.name}")
+          ) {
             Icon(
               imageVector = Icons.Default.CloudDownload,
-              contentDescription = "Download File",
+              contentDescription = "Download ${projectFile.name}",
               tint = BrandPrimaryOrange,
               modifier = Modifier.size(18.dp)
             )
           }
         }
 
+        // Direct touch-friendly Trash / Delete button beside each file
+        IconButton(
+          onClick = onDelete,
+          modifier = Modifier
+            .size(36.dp)
+            .testTag("delete_file_${projectFile.name}")
+        ) {
+          Icon(
+            imageVector = Icons.Default.Delete,
+            contentDescription = "Delete ${projectFile.name}",
+            tint = TerminalRed,
+            modifier = Modifier.size(18.dp)
+          )
+        }
+
         Box {
           IconButton(
             onClick = { showMenu = true },
-            modifier = Modifier.size(32.dp)
+            modifier = Modifier
+              .size(36.dp)
+              .testTag("more_file_${projectFile.name}")
           ) {
             Icon(
               imageVector = Icons.Default.Edit,
-              contentDescription = "More",
+              contentDescription = "File Actions",
               tint = BrandTextBlack,
               modifier = Modifier.size(16.dp)
             )

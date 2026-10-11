@@ -1,6 +1,12 @@
 package com.example.ui.screens
 
+import android.graphics.BitmapFactory
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,35 +20,47 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -54,13 +72,15 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -70,18 +90,20 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.data.model.AgentMode
 import com.example.data.model.AgentToolAction
+import com.example.data.model.AttachmentType
+import com.example.data.model.ChatAttachment
 import com.example.data.model.ChatMessage
 import com.example.data.model.MessageSender
 import com.example.ui.components.AltronGlassCard
 import com.example.ui.components.AltronPrimaryButton
 import com.example.ui.components.Floating3DElements
 import com.example.ui.components.StatusBadge
-import com.example.ui.components.triggerTactileFeedback
-import com.example.ui.navigation.Screen
 import com.example.ui.theme.AltronAmber
 import com.example.ui.theme.BrandPrimaryOrange
 import com.example.ui.theme.BrandTextBlack
@@ -90,13 +112,20 @@ import com.example.ui.theme.CodeBlockBackground
 import com.example.ui.theme.CodeBlockHeader
 import com.example.ui.theme.CodeBlockText
 import com.example.ui.theme.LightBorder
-import com.example.ui.theme.LightSurface
 import com.example.ui.theme.LightSurfaceElevated
 import com.example.ui.theme.PureWhiteBackground
 import com.example.ui.theme.TerminalGreen
 import com.example.ui.theme.TerminalRed
 import com.example.ui.viewmodel.AltronViewModel
+import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
 import java.util.regex.Pattern
+
+// Represents parsed parts of assistant message
+sealed class ContentSegment {
+  data class Text(val content: String) : ContentSegment()
+  data class Code(val data: CodeBlockData) : ContentSegment()
+}
 
 data class CodeBlockData(
   val language: String,
@@ -104,17 +133,12 @@ data class CodeBlockData(
   val code: String
 )
 
-sealed class ContentSegment {
-  data class Text(val content: String) : ContentSegment()
-  data class Code(val data: CodeBlockData) : ContentSegment()
-}
-
 fun parseMessageSegments(content: String): List<ContentSegment> {
   val segments = mutableListOf<ContentSegment>()
-  val pattern = Pattern.compile("```([a-zA-Z0-9_#+.-]*)(?::([a-zA-Z0-9_./-]+))?\\r?\\n([\\s\\S]*?)(?:```|$)")
-  val matcher = pattern.matcher(content)
-  var lastIndex = 0
+  val codePattern = Pattern.compile("```([a-zA-Z0-9_:-]*)\\n([\\s\\S]*?)```")
+  val matcher = codePattern.matcher(content)
 
+  var lastIndex = 0
   while (matcher.find()) {
     val start = matcher.start()
     val end = matcher.end()
@@ -126,23 +150,23 @@ fun parseMessageSegments(content: String): List<ContentSegment> {
       }
     }
 
-    val rawLang = matcher.group(1)?.trim().orEmpty()
-    val rawFileName = matcher.group(2)?.trim().orEmpty()
-    val rawCode = matcher.group(3)?.trimEnd().orEmpty()
+    val header = matcher.group(1).orEmpty().trim()
+    val codeBody = matcher.group(2).orEmpty().trimEnd()
 
-    val lang = if (rawLang.isNotBlank()) rawLang.uppercase() else detectLanguageFromCode(rawCode)
-    val fileName = if (rawFileName.isNotBlank()) {
-      rawFileName
-    } else {
-      guessFileNameFromLanguage(lang, rawCode)
+    val (lang, rawName) = when {
+      header.startsWith("file:") -> "FILE" to header.removePrefix("file:").trim()
+      header.isNotEmpty() -> header.uppercase() to inferFileName(header)
+      else -> "CODE" to "snippet.txt"
     }
+
+    val fileName = if (rawName.isNotBlank()) rawName else inferFileName(lang)
 
     segments.add(
       ContentSegment.Code(
         CodeBlockData(
           language = lang,
           fileName = fileName,
-          code = rawCode
+          code = codeBody
         )
       )
     )
@@ -151,44 +175,28 @@ fun parseMessageSegments(content: String): List<ContentSegment> {
   }
 
   if (lastIndex < content.length) {
-    val remainingText = content.substring(lastIndex).trim()
-    if (remainingText.isNotEmpty()) {
-      segments.add(ContentSegment.Text(remainingText))
+    val trailing = content.substring(lastIndex).trim()
+    if (trailing.isNotEmpty()) {
+      segments.add(ContentSegment.Text(trailing))
     }
   }
 
-  if (segments.isEmpty() && content.isNotEmpty()) {
-    segments.add(ContentSegment.Text(content))
-  }
-
-  return segments
+  return segments.ifEmpty { listOf(ContentSegment.Text(content)) }
 }
 
-fun detectLanguageFromCode(code: String): String {
-  val trimmed = code.trimStart()
-  return when {
-    trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html") -> "HTML"
-    trimmed.startsWith("import React") || trimmed.contains("export default") -> "JAVASCRIPT"
-    trimmed.startsWith("package ") || trimmed.contains("fun ") -> "KOTLIN"
-    trimmed.startsWith("def ") || trimmed.startsWith("import ") -> "PYTHON"
-    trimmed.startsWith("{") && trimmed.endsWith("}") -> "JSON"
-    trimmed.contains("SELECT ") || trimmed.contains("CREATE TABLE") -> "SQL"
-    trimmed.startsWith("#!/") || trimmed.startsWith("echo ") -> "BASH"
-    else -> "CODE"
-  }
-}
-
-fun guessFileNameFromLanguage(language: String, code: String): String {
-  val trimmed = code.trimStart()
-  if (trimmed.startsWith("<!DOCTYPE html") || language == "HTML") return "index.html"
-  return when (language) {
+fun inferFileName(lang: String): String {
+  return when (lang.uppercase()) {
     "KOTLIN", "KT" -> "Main.kt"
-    "PYTHON" -> "main.py"
+    "JAVA" -> "Main.java"
+    "PYTHON", "PY" -> "main.py"
     "JAVASCRIPT", "JS" -> "script.js"
-    "TYPESCRIPT", "TS" -> "main.ts"
-    "JSON" -> "config.json"
+    "TYPESCRIPT", "TS" -> "index.ts"
+    "TSX" -> "App.tsx"
+    "JSX" -> "App.jsx"
+    "HTML" -> "index.html"
     "CSS" -> "styles.css"
-    "BASH", "SHELL" -> "run.sh"
+    "JSON" -> "data.json"
+    "BASH", "SHELL", "SH" -> "run.sh"
     else -> "snippet.txt"
   }
 }
@@ -226,6 +234,7 @@ fun parseMarkdownSpans(text: String, baseColor: Color): AnnotatedString {
   }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiAgentScreen(
   viewModel: AltronViewModel,
@@ -236,57 +245,87 @@ fun AiAgentScreen(
   val activeProvider by viewModel.activeProvider.collectAsState()
   val currentMode by viewModel.agentMode.collectAsState()
   val conversations by viewModel.conversations.collectAsState()
+  val pendingAttachments by viewModel.pendingAttachments.collectAsState()
 
   val haptic = LocalHapticFeedback.current
   val context = LocalContext.current
+  val coroutineScope = rememberCoroutineScope()
   var inputPrompt by remember { mutableStateOf("") }
   val listState = rememberLazyListState()
-  var isAutoScrollingEnabled by remember { mutableStateOf(true) }
-  var isProgrammaticScroll by remember { mutableStateOf(false) }
 
   var showModelMenu by remember { mutableStateOf(false) }
   var showHistoryMenu by remember { mutableStateOf(false) }
+  var showAttachmentMenu by remember { mutableStateOf(false) }
 
-  // Detect manual user scrolling to pause auto-scroll
-  LaunchedEffect(listState) {
-    snapshotFlow { listState.isScrollInProgress }
-      .collect { isScrolling ->
-        if (isScrolling && !isProgrammaticScroll) {
-          val layoutInfo = listState.layoutInfo
-          val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
-          val isAtBottom = lastVisibleItem != null && lastVisibleItem.index == layoutInfo.totalItemsCount - 1
-          if (!isAtBottom) {
-            isAutoScrollingEnabled = false
-          }
-        }
-      }
+  // Attachment Launchers
+  val imagePickerLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 5)
+  ) { uris ->
+    uris.forEach { uri ->
+      viewModel.processUriAttachment(context, uri, AttachmentType.IMAGE)
+    }
   }
 
-  // Auto resume when at bottom
-  val isAtBottom by remember {
+  val documentPickerLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.GetMultipleContents()
+  ) { uris ->
+    uris.forEach { uri ->
+      viewModel.processUriAttachment(context, uri)
+    }
+  }
+
+  val videoPickerLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.GetMultipleContents()
+  ) { uris ->
+    uris.forEach { uri ->
+      viewModel.processUriAttachment(context, uri, AttachmentType.VIDEO)
+    }
+  }
+
+  val takePhotoLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.TakePicturePreview()
+  ) { bitmap ->
+    if (bitmap != null) {
+      val baos = ByteArrayOutputStream()
+      bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, baos)
+      val bytes = baos.toByteArray()
+      val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+      val attachment = ChatAttachment(
+        name = "photo_${System.currentTimeMillis()}.jpg",
+        mimeType = "image/jpeg",
+        sizeBytes = bytes.size.toLong(),
+        type = AttachmentType.IMAGE,
+        base64Data = base64
+      )
+      viewModel.addAttachment(attachment)
+    }
+  }
+
+  // ROBUST CHAT SCROLLING FIX:
+  // 1. Check whether user is near the bottom of conversation.
+  // CRITICAL FIX: If visibleItemsInfo is empty, do NOT default to true if totalItems > 1,
+  // as empty list during layout passes caused sudden jump back to top/bottom!
+  val isNearBottom by remember {
     derivedStateOf {
       val layoutInfo = listState.layoutInfo
       val totalItems = layoutInfo.totalItemsCount
-      if (totalItems == 0) true
-      else {
-        val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
-        lastVisibleItem != null && lastVisibleItem.index == totalItems - 1
-      }
+      if (totalItems <= 1) return@derivedStateOf true
+      val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull() ?: return@derivedStateOf false
+      lastVisible.index >= totalItems - 2
     }
   }
 
-  LaunchedEffect(isAtBottom) {
-    if (isAtBottom) {
-      isAutoScrollingEnabled = true
-    }
-  }
-
-  // Smooth scroll follow during streaming
-  LaunchedEffect(messages.size, messages.lastOrNull()?.content?.length) {
-    if (isAutoScrollingEnabled && messages.isNotEmpty()) {
-      isProgrammaticScroll = true
+  // 2. Only follow streaming updates when user is near bottom and not actively dragging
+  LaunchedEffect(messages.lastOrNull()?.content?.length) {
+    if (isNearBottom && !listState.isScrollInProgress && messages.isNotEmpty()) {
       listState.scrollToItem(messages.size - 1)
-      isProgrammaticScroll = false
+    }
+  }
+
+  // 3. When a new message is posted (user submits prompt or response starts), smoothly scroll to bottom
+  LaunchedEffect(messages.size) {
+    if (messages.isNotEmpty()) {
+      listState.animateScrollToItem(messages.size - 1)
     }
   }
 
@@ -296,6 +335,8 @@ fun AiAgentScreen(
     modifier = modifier
       .fillMaxSize()
       .padding(horizontal = 14.dp, vertical = 6.dp)
+      .widthIn(max = 900.dp)
+      .imePadding()
   ) {
     // Top Controls Bar (Model Selector & Action Chips)
     Row(
@@ -359,55 +400,63 @@ fun AiAgentScreen(
               }
             )
           }
-          DropdownMenuItem(
-            text = { Text("Configure Providers...", color = BrandPrimaryOrange, fontWeight = FontWeight.Bold) },
-            onClick = {
-              showModelMenu = false
-              viewModel.setScreen(Screen.SETTINGS)
-            }
-          )
         }
       }
 
-      // Actions: New Chat & History
+      // Action Header Icons: New Chat & History
       Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        IconButton(
-          onClick = {
-            triggerTactileFeedback(context, haptic)
-            viewModel.startNewChat()
-          },
+        Box(
           modifier = Modifier
-            .size(36.dp)
-            .clip(CircleShape)
+            .clip(RoundedCornerShape(10.dp))
             .background(PureWhiteBackground)
-            .border(1.dp, LightBorder, CircleShape)
+            .border(1.dp, LightBorder, RoundedCornerShape(10.dp))
+            .clickable {
+              triggerTactileFeedback(context, haptic)
+              viewModel.startNewChat()
+            }
+            .padding(horizontal = 10.dp, vertical = 6.dp)
         ) {
-          Icon(
-            imageVector = Icons.Default.Add,
-            contentDescription = "New Chat",
-            tint = BrandPrimaryOrange,
-            modifier = Modifier.size(18.dp)
-          )
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+              imageVector = Icons.Default.Add,
+              contentDescription = "New Chat",
+              tint = BrandPrimaryOrange,
+              modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+              text = "New",
+              fontSize = 11.sp,
+              fontWeight = FontWeight.Bold,
+              color = BrandTextBlack
+            )
+          }
         }
 
         Box {
-          IconButton(
-            onClick = {
-              triggerTactileFeedback(context, haptic)
-              showHistoryMenu = true
-            },
+          Box(
             modifier = Modifier
-              .size(36.dp)
-              .clip(CircleShape)
+              .clip(RoundedCornerShape(10.dp))
               .background(PureWhiteBackground)
-              .border(1.dp, LightBorder, CircleShape)
+              .border(1.dp, LightBorder, RoundedCornerShape(10.dp))
+              .clickable { showHistoryMenu = true }
+              .padding(horizontal = 10.dp, vertical = 6.dp)
           ) {
-            Icon(
-              imageVector = Icons.Default.History,
-              contentDescription = "History",
-              tint = BrandTextBlack,
-              modifier = Modifier.size(18.dp)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Icon(
+                imageVector = Icons.Default.History,
+                contentDescription = "History",
+                tint = BrandTextSecondary,
+                modifier = Modifier.size(16.dp)
+              )
+              Spacer(modifier = Modifier.width(4.dp))
+              Text(
+                text = "${conversations.size}",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = BrandTextBlack
+              )
+            }
           }
 
           DropdownMenu(
@@ -417,37 +466,21 @@ fun AiAgentScreen(
           ) {
             if (conversations.isEmpty()) {
               DropdownMenuItem(
-                text = { Text("No saved conversations yet", color = BrandTextSecondary, fontSize = 12.sp) },
+                text = { Text("No saved chats yet", color = BrandTextSecondary, fontSize = 12.sp) },
                 onClick = { showHistoryMenu = false }
               )
             } else {
               conversations.forEach { conv ->
                 DropdownMenuItem(
                   text = {
-                    Row(
-                      modifier = Modifier.fillMaxWidth(),
-                      horizontalArrangement = Arrangement.SpaceBetween,
-                      verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Column {
                       Text(
                         text = conv.title,
-                        maxLines = 1,
+                        fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
                         color = BrandTextBlack,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.weight(1f)
+                        maxLines = 1
                       )
-                      IconButton(
-                        onClick = { viewModel.deleteConversation(conv.id) },
-                        modifier = Modifier.size(24.dp)
-                      ) {
-                        Icon(
-                          imageVector = Icons.Default.DeleteOutline,
-                          contentDescription = "Delete",
-                          tint = TerminalRed,
-                          modifier = Modifier.size(16.dp)
-                        )
-                      }
                     }
                   },
                   onClick = {
@@ -462,20 +495,20 @@ fun AiAgentScreen(
       }
     }
 
-    Spacer(modifier = Modifier.height(4.dp))
-
-    // Mode Selector (ASK, CODE, AGENT)
+    // Mode Selector Segmented Tabs
     Row(
-      modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.spacedBy(8.dp)
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(vertical = 4.dp),
+      horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-      AgentMode.values().forEach { mode ->
-        val isSelected = currentMode == mode
+      AgentMode.entries.forEach { mode ->
+        val isSelected = mode == currentMode
         Box(
           modifier = Modifier
             .weight(1f)
             .clip(RoundedCornerShape(8.dp))
-            .background(if (isSelected) BrandPrimaryOrange else PureWhiteBackground)
+            .background(if (isSelected) BrandPrimaryOrange.copy(alpha = 0.15f) else PureWhiteBackground)
             .border(
               1.dp,
               if (isSelected) BrandPrimaryOrange else LightBorder,
@@ -498,151 +531,110 @@ fun AiAgentScreen(
       }
     }
 
-    Spacer(modifier = Modifier.height(6.dp))
+    Spacer(modifier = Modifier.height(4.dp))
 
-    // Chat Area or Suggestion Screen
-    if (!hasUserMessages) {
-      Box(
-        modifier = Modifier
-          .fillMaxWidth()
-          .weight(1f),
-        contentAlignment = Alignment.Center
+    // Main Chat Message Area (Persistent LazyColumn container to prevent scroll resets)
+    Box(
+      modifier = Modifier
+        .fillMaxWidth()
+        .weight(1f)
+    ) {
+      LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
       ) {
-        // Decorative floating 3D spheres along edges
-        Floating3DElements()
-
-        Column(
-          horizontalAlignment = Alignment.CenterHorizontally,
-          modifier = Modifier.padding(horizontal = 16.dp)
-        ) {
-          Text(
-            text = "ALTRON CODE AI",
-            style = MaterialTheme.typography.titleLarge.copy(
-              fontWeight = FontWeight.Bold,
-              color = BrandPrimaryOrange
-            )
-          )
-          Spacer(modifier = Modifier.height(4.dp))
-          Text(
-            text = "Your Phone. Your AI. Your Coding Studio.",
-            style = MaterialTheme.typography.bodyMedium.copy(
-              color = BrandTextSecondary
-            )
-          )
-
-          Spacer(modifier = Modifier.height(24.dp))
-
-          // 3 Suggestion Buttons: Orange Background with Black Text
-          listOf(
-            "Build an HTML5 interactive web page with CSS & JS",
-            "Write a Kotlin Compose screen for user profile",
-            "Explain and debug my project files and scripts"
-          ).forEach { prompt ->
-            Button(
-              onClick = {
+        // If conversation has no user messages yet, show hero suggestions inside the LazyColumn
+        if (!hasUserMessages) {
+          item(key = "hero_suggestions_header") {
+            HeroSuggestionsCard(
+              onSelectSuggestion = { prompt ->
                 triggerTactileFeedback(context, haptic)
                 inputPrompt = prompt
                 viewModel.sendAgentMessage(prompt)
-              },
-              modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-                .defaultMinSize(minHeight = 48.dp),
-              shape = RoundedCornerShape(12.dp),
-              colors = ButtonDefaults.buttonColors(
-                containerColor = BrandPrimaryOrange,
-                contentColor = BrandTextBlack
-              )
-            ) {
-              Text(
-                text = prompt,
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
-                color = BrandTextBlack,
-                modifier = Modifier.fillMaxWidth()
-              )
-            }
+              }
+            )
           }
         }
-      }
-    } else {
-      // Chat Messages List with stable scrolling
-      LazyColumn(
-        state = listState,
-        modifier = Modifier
-          .fillMaxWidth()
-          .weight(1f),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-      ) {
-        items(messages) { message ->
+
+        // Message items with STABLE unique key from message.id
+        items(messages, key = { it.id }) { message ->
           ChatMessageBubble(
             message = message,
-            onExecuteTool = { action ->
-              viewModel.executeAgentTool(message, action)
-            },
-            onSaveCode = { fileName, code ->
-              viewModel.saveCodeBlockToFile(fileName, code)
-            }
+            onExecuteTool = { action -> viewModel.executeAgentTool(message, action) },
+            onSaveCode = { fileName, code -> viewModel.saveCodeBlockToFile(fileName, code) }
           )
         }
 
         if (isThinking) {
-          item {
-            Row(
-              modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
-              verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-              Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(
-                  modifier = Modifier.size(16.dp),
-                  color = BrandPrimaryOrange,
-                  strokeWidth = 2.dp
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                  text = "Streaming from ${activeProvider.selectedModel}...",
-                  fontSize = 12.sp,
-                  color = BrandPrimaryOrange,
-                  fontFamily = FontFamily.Monospace,
-                  fontWeight = FontWeight.Bold
-                )
-              }
+          item(key = "agent_streaming_indicator") {
+            StreamingIndicator(
+              activeModel = activeProvider.selectedModel,
+              onStop = { viewModel.cancelAgent() }
+            )
+          }
+        }
+      }
 
-              // Stop generation button
-              Box(
-                modifier = Modifier
-                  .clip(RoundedCornerShape(6.dp))
-                  .background(TerminalRed.copy(alpha = 0.15f))
-                  .border(0.8.dp, TerminalRed, RoundedCornerShape(6.dp))
-                  .clickable {
-                    triggerTactileFeedback(context, haptic)
-                    viewModel.cancelAgent()
-                  }
-                  .padding(horizontal = 8.dp, vertical = 4.dp)
-              ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                  Icon(
-                    imageVector = Icons.Default.Stop,
-                    contentDescription = "Stop",
-                    tint = TerminalRed,
-                    modifier = Modifier.size(12.dp)
-                  )
-                  Spacer(modifier = Modifier.width(4.dp))
-                  Text("Stop", fontSize = 10.sp, color = TerminalRed, fontWeight = FontWeight.Bold)
-                }
-              }
+      // "Jump to latest" floating button when user has scrolled upward
+      if (!isNearBottom && messages.size > 2) {
+        Surface(
+          onClick = {
+            coroutineScope.launch {
+              listState.animateScrollToItem(messages.size - 1)
             }
+          },
+          shape = RoundedCornerShape(20.dp),
+          color = BrandPrimaryOrange,
+          shadowElevation = 6.dp,
+          modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(bottom = 12.dp, end = 8.dp)
+            .testTag("jump_to_latest_btn")
+        ) {
+          Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Icon(
+              imageVector = Icons.Default.ArrowDownward,
+              contentDescription = "Jump to latest",
+              tint = BrandTextBlack,
+              modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+              text = "Jump to latest",
+              fontWeight = FontWeight.Bold,
+              fontSize = 12.sp,
+              color = BrandTextBlack
+            )
           }
         }
       }
     }
 
-    Spacer(modifier = Modifier.height(8.dp))
+    Spacer(modifier = Modifier.height(6.dp))
 
-    // Chat Input Composer Bar: White background with subtle gray border
+    // Attachment Previews row immediately above composer
+    if (pendingAttachments.isNotEmpty()) {
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(bottom = 6.dp)
+          .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+      ) {
+        pendingAttachments.forEach { att ->
+          AttachmentPreviewCard(
+            attachment = att,
+            onRemove = { viewModel.removePendingAttachment(att.id) }
+          )
+        }
+      }
+    }
+
+    // Chat Input Composer Bar
     Row(
       modifier = Modifier
         .fillMaxWidth()
@@ -650,10 +642,31 @@ fun AiAgentScreen(
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+      // Attachment Button (Plus / Paperclip)
+      IconButton(
+        onClick = {
+          triggerTactileFeedback(context, haptic)
+          showAttachmentMenu = true
+        },
+        modifier = Modifier
+          .size(48.dp)
+          .clip(CircleShape)
+          .background(LightSurfaceElevated)
+          .border(1.dp, LightBorder, CircleShape)
+          .testTag("ai_agent_attach_btn")
+      ) {
+        Icon(
+          imageVector = Icons.Default.AttachFile,
+          contentDescription = "Add Attachments",
+          tint = BrandPrimaryOrange,
+          modifier = Modifier.size(20.dp)
+        )
+      }
+
       OutlinedTextField(
         value = inputPrompt,
         onValueChange = { inputPrompt = it },
-        placeholder = { Text("Ask ALTRON to code, debug, or plan...", fontSize = 13.sp, color = BrandTextSecondary) },
+        placeholder = { Text("Ask ALTRON to code, debug, or inspect...", fontSize = 13.sp, color = BrandTextSecondary) },
         modifier = Modifier
           .weight(1f)
           .testTag("ai_agent_input_field"),
@@ -668,6 +681,8 @@ fun AiAgentScreen(
           unfocusedTextColor = BrandTextBlack
         )
       )
+
+      val canSend = inputPrompt.isNotBlank() || pendingAttachments.isNotEmpty()
 
       if (isThinking) {
         IconButton(
@@ -690,26 +705,386 @@ fun AiAgentScreen(
       } else {
         IconButton(
           onClick = {
-            if (inputPrompt.isNotBlank()) {
+            if (canSend) {
               triggerTactileFeedback(context, haptic)
               val text = inputPrompt
               inputPrompt = ""
               viewModel.sendAgentMessage(text)
             }
           },
-          enabled = inputPrompt.isNotBlank(),
+          enabled = canSend,
           modifier = Modifier
             .size(48.dp)
             .clip(CircleShape)
-            .background(if (inputPrompt.isNotBlank()) BrandPrimaryOrange else LightSurfaceElevated)
+            .background(if (canSend) BrandPrimaryOrange else LightSurfaceElevated)
             .testTag("ai_agent_send_btn")
         ) {
           Icon(
             imageVector = Icons.AutoMirrored.Filled.Send,
             contentDescription = "Send",
-            tint = if (inputPrompt.isNotBlank()) BrandTextBlack else BrandTextSecondary,
+            tint = if (canSend) BrandTextBlack else BrandTextSecondary,
             modifier = Modifier.size(20.dp)
           )
+        }
+      }
+    }
+  }
+
+  // Attachment Modal Bottom Sheet
+  if (showAttachmentMenu) {
+    ModalBottomSheet(
+      onDismissRequest = { showAttachmentMenu = false },
+      containerColor = PureWhiteBackground
+    ) {
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 20.dp, vertical = 12.dp)
+      ) {
+        Text(
+          text = "Add Attachments",
+          fontWeight = FontWeight.Bold,
+          fontSize = 18.sp,
+          color = BrandTextBlack
+        )
+        Text(
+          text = "Images, documents, code files, and videos for AI reasoning",
+          fontSize = 12.sp,
+          color = BrandTextSecondary
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+
+        AttachmentMenuOption(
+          icon = Icons.Default.PhotoCamera,
+          title = "Take Photo",
+          subtitle = "Capture photo via camera",
+          onClick = {
+            showAttachmentMenu = false
+            takePhotoLauncher.launch(null)
+          }
+        )
+
+        AttachmentMenuOption(
+          icon = Icons.Default.Image,
+          title = "Upload Images",
+          subtitle = "PNG, JPG, JPEG, WebP (up to 5)",
+          onClick = {
+            showAttachmentMenu = false
+            imagePickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+          }
+        )
+
+        AttachmentMenuOption(
+          icon = Icons.Default.Videocam,
+          title = "Upload Video",
+          subtitle = "MP4, MOV, WebM",
+          onClick = {
+            showAttachmentMenu = false
+            videoPickerLauncher.launch("video/*")
+          }
+        )
+
+        AttachmentMenuOption(
+          icon = Icons.Default.Description,
+          title = "Upload Document",
+          subtitle = "PDF, TXT, MD, CSV, DOCX, JSON",
+          onClick = {
+            showAttachmentMenu = false
+            documentPickerLauncher.launch("*/*")
+          }
+        )
+
+        AttachmentMenuOption(
+          icon = Icons.Default.Code,
+          title = "Upload Code File",
+          subtitle = "JS, TS, HTML, CSS, Python, Java, Kotlin, Dart",
+          onClick = {
+            showAttachmentMenu = false
+            documentPickerLauncher.launch("*/*")
+          }
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Button(
+          onClick = { showAttachmentMenu = false },
+          modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 48.dp),
+          colors = ButtonDefaults.buttonColors(
+            containerColor = LightSurfaceElevated,
+            contentColor = BrandTextBlack
+          ),
+          shape = RoundedCornerShape(12.dp)
+        ) {
+          Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+      }
+    }
+  }
+}
+
+@Composable
+fun AttachmentMenuOption(
+  icon: ImageVector,
+  title: String,
+  subtitle: String,
+  onClick: () -> Unit
+) {
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .clip(RoundedCornerShape(10.dp))
+      .clickable(onClick = onClick)
+      .padding(horizontal = 12.dp, vertical = 10.dp),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    Box(
+      modifier = Modifier
+        .size(40.dp)
+        .clip(RoundedCornerShape(8.dp))
+        .background(BrandPrimaryOrange.copy(alpha = 0.12f)),
+      contentAlignment = Alignment.Center
+    ) {
+      Icon(imageVector = icon, contentDescription = null, tint = BrandPrimaryOrange, modifier = Modifier.size(20.dp))
+    }
+    Spacer(modifier = Modifier.width(14.dp))
+    Column(modifier = Modifier.weight(1f)) {
+      Text(text = title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = BrandTextBlack)
+      Text(text = subtitle, fontSize = 11.sp, color = BrandTextSecondary)
+    }
+  }
+}
+
+@Composable
+fun AttachmentPreviewCard(
+  attachment: ChatAttachment,
+  onRemove: () -> Unit
+) {
+  Box(
+    modifier = Modifier
+      .clip(RoundedCornerShape(10.dp))
+      .background(LightSurfaceElevated)
+      .border(1.dp, LightBorder, RoundedCornerShape(10.dp))
+      .padding(horizontal = 10.dp, vertical = 6.dp)
+  ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      // Icon or miniature image
+      if (attachment.type == AttachmentType.IMAGE && attachment.base64Data != null) {
+        val bitmap = remember(attachment.base64Data) {
+          try {
+            val bytes = android.util.Base64.decode(attachment.base64Data, android.util.Base64.NO_WRAP)
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+          } catch (e: Exception) {
+            null
+          }
+        }
+        if (bitmap != null) {
+          androidx.compose.foundation.Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = null,
+            modifier = Modifier
+              .size(28.dp)
+              .clip(RoundedCornerShape(4.dp)),
+            contentScale = ContentScale.Crop
+          )
+        } else {
+          Icon(Icons.Default.Image, contentDescription = null, tint = BrandPrimaryOrange, modifier = Modifier.size(18.dp))
+        }
+      } else {
+        val icon = when (attachment.type) {
+          AttachmentType.IMAGE -> Icons.Default.Image
+          AttachmentType.VIDEO -> Icons.Default.Videocam
+          AttachmentType.DOCUMENT -> Icons.Default.Description
+          AttachmentType.CODE -> Icons.Default.Code
+        }
+        Icon(icon, contentDescription = null, tint = BrandPrimaryOrange, modifier = Modifier.size(18.dp))
+      }
+
+      Spacer(modifier = Modifier.width(8.dp))
+
+      Column(modifier = Modifier.widthIn(max = 130.dp)) {
+        Text(
+          text = attachment.name,
+          fontWeight = FontWeight.Bold,
+          fontSize = 11.sp,
+          color = BrandTextBlack,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis
+        )
+        Text(
+          text = if (attachment.sizeBytes > 0) "${attachment.sizeBytes / 1024} KB" else attachment.type.name,
+          fontSize = 9.sp,
+          color = BrandTextSecondary
+        )
+      }
+
+      Spacer(modifier = Modifier.width(6.dp))
+
+      IconButton(
+        onClick = onRemove,
+        modifier = Modifier
+          .size(24.dp)
+          .testTag("remove_attachment_${attachment.id}")
+      ) {
+        Icon(
+          imageVector = Icons.Default.Close,
+          contentDescription = "Remove attachment",
+          tint = BrandTextSecondary,
+          modifier = Modifier.size(14.dp)
+        )
+      }
+    }
+  }
+}
+
+@Composable
+fun AttachedFileBadge(attachment: ChatAttachment) {
+  Box(
+    modifier = Modifier
+      .clip(RoundedCornerShape(8.dp))
+      .background(PureWhiteBackground)
+      .border(1.dp, LightBorder, RoundedCornerShape(8.dp))
+      .padding(horizontal = 8.dp, vertical = 4.dp)
+  ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      val icon = when (attachment.type) {
+        AttachmentType.IMAGE -> Icons.Default.Image
+        AttachmentType.VIDEO -> Icons.Default.Videocam
+        AttachmentType.DOCUMENT -> Icons.Default.Description
+        AttachmentType.CODE -> Icons.Default.Code
+      }
+      Icon(icon, contentDescription = null, tint = BrandPrimaryOrange, modifier = Modifier.size(14.dp))
+      Spacer(modifier = Modifier.width(6.dp))
+      Text(
+        text = attachment.name,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        color = BrandTextBlack,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.widthIn(max = 140.dp)
+      )
+    }
+  }
+}
+
+@Composable
+fun HeroSuggestionsCard(
+  onSelectSuggestion: (String) -> Unit
+) {
+  Box(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(vertical = 16.dp),
+    contentAlignment = Alignment.Center
+  ) {
+    Floating3DElements()
+
+    Column(
+      horizontalAlignment = Alignment.CenterHorizontally,
+      modifier = Modifier.padding(horizontal = 16.dp)
+    ) {
+      Text(
+        text = "ALTRON CODE AI",
+        style = MaterialTheme.typography.titleLarge.copy(
+          fontWeight = FontWeight.Bold,
+          color = BrandPrimaryOrange
+        )
+      )
+      Spacer(modifier = Modifier.height(4.dp))
+      Text(
+        text = "Your Phone. Your AI. Your Coding Studio.",
+        style = MaterialTheme.typography.bodyMedium.copy(
+          color = BrandTextSecondary
+        )
+      )
+
+      Spacer(modifier = Modifier.height(20.dp))
+
+      listOf(
+        "Build an HTML5 interactive web page with CSS & JS",
+        "Write a Kotlin Compose screen for user profile",
+        "Explain and debug my project files and scripts"
+      ).forEach { prompt ->
+        Button(
+          onClick = { onSelectSuggestion(prompt) },
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .defaultMinSize(minHeight = 48.dp),
+          shape = RoundedCornerShape(12.dp),
+          colors = ButtonDefaults.buttonColors(
+            containerColor = BrandPrimaryOrange,
+            contentColor = BrandTextBlack
+          )
+        ) {
+          Text(
+            text = prompt,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            color = BrandTextBlack,
+            modifier = Modifier.fillMaxWidth()
+          )
+        }
+      }
+    }
+  }
+}
+
+@Composable
+fun StreamingIndicator(
+  activeModel: String,
+  onStop: () -> Unit
+) {
+  Box(
+    modifier = Modifier
+      .fillMaxWidth()
+      .clip(RoundedCornerShape(8.dp))
+      .background(PureWhiteBackground)
+      .border(1.dp, LightBorder, RoundedCornerShape(8.dp))
+      .padding(10.dp)
+  ) {
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        CircularProgressIndicator(
+          modifier = Modifier.size(16.dp),
+          color = BrandPrimaryOrange,
+          strokeWidth = 2.dp
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+          text = "Streaming from $activeModel...",
+          fontSize = 12.sp,
+          color = BrandPrimaryOrange,
+          fontFamily = FontFamily.Monospace,
+          fontWeight = FontWeight.Bold
+        )
+      }
+
+      Box(
+        modifier = Modifier
+          .clip(RoundedCornerShape(6.dp))
+          .background(TerminalRed.copy(alpha = 0.15f))
+          .border(0.8.dp, TerminalRed, RoundedCornerShape(6.dp))
+          .clickable { onStop() }
+          .padding(horizontal = 8.dp, vertical = 4.dp)
+      ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Icon(
+            imageVector = Icons.Default.Stop,
+            contentDescription = "Stop",
+            tint = TerminalRed,
+            modifier = Modifier.size(12.dp)
+          )
+          Spacer(modifier = Modifier.width(4.dp))
+          Text("Stop", fontSize = 10.sp, color = TerminalRed, fontWeight = FontWeight.Bold)
         }
       }
     }
@@ -723,6 +1098,8 @@ fun ChatMessageBubble(
   onSaveCode: (String, String) -> String
 ) {
   val isUser = message.sender == MessageSender.USER
+  val clipboardManager = LocalClipboardManager.current
+  val context = LocalContext.current
 
   Column(
     modifier = Modifier.fillMaxWidth(),
@@ -730,21 +1107,38 @@ fun ChatMessageBubble(
   ) {
     if (isUser) {
       // User Question: Black text on soft light surface with subtle gray border
-      Box(
-        modifier = Modifier
-          .align(Alignment.End)
-          .clip(RoundedCornerShape(16.dp))
-          .background(LightSurfaceElevated)
-          .border(1.dp, LightBorder, RoundedCornerShape(16.dp))
-          .padding(12.dp)
-      ) {
-        Text(
-          text = message.content,
-          style = MaterialTheme.typography.bodyMedium.copy(
-            color = BrandTextBlack,
-            fontWeight = FontWeight.Medium
-          )
-        )
+      Column(horizontalAlignment = Alignment.End) {
+        // Show user attachments if any
+        if (message.attachments.isNotEmpty()) {
+          Row(
+            modifier = Modifier
+              .padding(bottom = 6.dp)
+              .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+          ) {
+            message.attachments.forEach { att ->
+              AttachedFileBadge(attachment = att)
+            }
+          }
+        }
+
+        Box(
+          modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(LightSurfaceElevated)
+            .border(1.dp, LightBorder, RoundedCornerShape(16.dp))
+            .padding(12.dp)
+        ) {
+          SelectionContainer {
+            Text(
+              text = message.content,
+              style = MaterialTheme.typography.bodyMedium.copy(
+                color = BrandTextBlack,
+                fontWeight = FontWeight.Medium
+              )
+            )
+          }
+        }
       }
     } else {
       // AI Response: Black text on white background
@@ -753,20 +1147,44 @@ fun ChatMessageBubble(
           .fillMaxWidth()
           .padding(vertical = 4.dp)
       ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Box(
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+              modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(BrandPrimaryOrange)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+              text = "ALTRON CODE AI",
+              fontSize = 12.sp,
+              color = BrandPrimaryOrange,
+              fontWeight = FontWeight.Bold
+            )
+          }
+
+          // Dedicated "Copy Response" action button for AI responses
+          IconButton(
+            onClick = {
+              clipboardManager.setText(AnnotatedString(message.content))
+              android.widget.Toast.makeText(context, "AI response copied to clipboard!", android.widget.Toast.LENGTH_SHORT).show()
+            },
             modifier = Modifier
-              .size(8.dp)
-              .clip(CircleShape)
-              .background(BrandPrimaryOrange)
-          )
-          Spacer(modifier = Modifier.width(6.dp))
-          Text(
-            text = "ALTRON CODE AI",
-            fontSize = 12.sp,
-            color = BrandPrimaryOrange,
-            fontWeight = FontWeight.Bold
-          )
+              .size(32.dp)
+              .testTag("copy_response_${message.id}")
+          ) {
+            Icon(
+              imageVector = Icons.Default.ContentCopy,
+              contentDescription = "Copy Response",
+              tint = BrandTextSecondary,
+              modifier = Modifier.size(16.dp)
+            )
+          }
         }
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -780,13 +1198,16 @@ fun ChatMessageBubble(
               val annotated = remember(segment.content) {
                 parseMarkdownSpans(segment.content, BrandTextBlack)
               }
-              Text(
-                text = annotated,
-                style = MaterialTheme.typography.bodyMedium,
-                color = BrandTextBlack,
-                lineHeight = 20.sp,
-                modifier = Modifier.padding(vertical = 4.dp)
-              )
+              // SelectionContainer allows word, sentence, and long-press selection on Android
+              SelectionContainer {
+                Text(
+                  text = annotated,
+                  style = MaterialTheme.typography.bodyMedium,
+                  color = BrandTextBlack,
+                  lineHeight = 20.sp,
+                  modifier = Modifier.padding(vertical = 4.dp)
+                )
+              }
             }
             is ContentSegment.Code -> {
               Spacer(modifier = Modifier.height(6.dp))
@@ -839,12 +1260,14 @@ fun ChatMessageBubble(
 
               if (action.command != null) {
                 Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                  text = "$ ${action.command}",
-                  fontFamily = FontFamily.Monospace,
-                  fontSize = 11.sp,
-                  color = TerminalGreen
-                )
+                SelectionContainer {
+                  Text(
+                    text = "$ ${action.command}",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    color = TerminalGreen
+                  )
+                }
               }
 
               Spacer(modifier = Modifier.height(10.dp))
@@ -861,7 +1284,7 @@ fun ChatMessageBubble(
   }
 }
 
-// Code Block: Dark charcoal background with readable code highlighting
+// Code Block: Dark charcoal background with readable code highlighting and selectable text
 @Composable
 fun CodeBlockCard(
   data: CodeBlockData,
@@ -959,20 +1382,22 @@ fun CodeBlockCard(
         }
       }
 
-      // Code content area
+      // Code content area with SelectionContainer for copy and word selection
       Box(
         modifier = Modifier
           .fillMaxWidth()
           .padding(12.dp)
       ) {
-        Text(
-          text = displayCode,
-          fontFamily = FontFamily.Monospace,
-          fontSize = 12.5.sp,
-          color = CodeBlockText,
-          lineHeight = 18.sp,
-          modifier = Modifier.horizontalScroll(rememberScrollState())
-        )
+        SelectionContainer {
+          Text(
+            text = displayCode,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.5.sp,
+            color = CodeBlockText,
+            lineHeight = 18.sp,
+            modifier = Modifier.horizontalScroll(rememberScrollState())
+          )
+        }
       }
 
       // Expand / Collapse toggle if long
@@ -980,16 +1405,12 @@ fun CodeBlockCard(
         Box(
           modifier = Modifier
             .fillMaxWidth()
-            .clickable {
-              triggerTactileFeedback(context, haptic)
-              isExpanded = !isExpanded
-            }
-            .background(CodeBlockHeader)
-            .padding(vertical = 6.dp),
+            .clickable { isExpanded = !isExpanded }
+            .padding(vertical = 8.dp),
           contentAlignment = Alignment.Center
         ) {
           Text(
-            text = if (isExpanded) "▲ Collapse code (${lines.size} lines)" else "▼ Expand code (${lines.size} lines)",
+            text = if (isExpanded) "Collapse Code" else "Show Full Code (${lines.size} lines)",
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             color = BrandPrimaryOrange
@@ -997,5 +1418,16 @@ fun CodeBlockCard(
         }
       }
     }
+  }
+}
+
+fun triggerTactileFeedback(
+  context: android.content.Context,
+  haptic: androidx.compose.ui.hapticfeedback.HapticFeedback
+) {
+  try {
+    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+  } catch (e: Exception) {
+    // Ignore if unsupported
   }
 }

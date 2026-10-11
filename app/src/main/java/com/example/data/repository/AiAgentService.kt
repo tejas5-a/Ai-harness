@@ -3,6 +3,8 @@ package com.example.data.repository
 import com.example.data.model.AgentToolAction
 import com.example.data.model.AgentMode
 import com.example.data.model.ApiProviderConfig
+import com.example.data.model.AttachmentType
+import com.example.data.model.ChatAttachment
 import com.example.data.model.ChatMessage
 import com.example.data.model.MessageSender
 import com.example.data.model.ProviderType
@@ -234,7 +236,8 @@ class AiAgentService {
     config: ApiProviderConfig,
     mode: AgentMode = AgentMode.AGENT,
     projectContext: String = "",
-    history: List<ChatMessage> = emptyList()
+    history: List<ChatMessage> = emptyList(),
+    attachments: List<ChatAttachment> = emptyList()
   ): Flow<String> = callbackFlow {
     if (config.apiKey.isBlank() && config.providerType != ProviderType.CUSTOM_COMPATIBLE) {
       trySend("⚠️ No API Key configured for ${config.providerType.displayName}. Please go to API Providers to configure your key.")
@@ -266,6 +269,35 @@ $projectContext
 Keep responses clear and concise.
 """.trimIndent()
 
+    // Format any attached documents, code files, or video metadata into prompt
+    val promptWithFiles = buildString {
+      val fileAttachments = attachments.filter { it.type == AttachmentType.DOCUMENT || it.type == AttachmentType.CODE }
+      if (fileAttachments.isNotEmpty()) {
+        appendLine("[Attached Project / Source Files for Context:")
+        fileAttachments.forEach { att ->
+          appendLine("--- File: ${att.name} (${att.mimeType}, ${att.sizeBytes / 1024} KB) ---")
+          appendLine(att.textContent ?: "[Empty or unreadable text content]")
+          appendLine("--- End of ${att.name} ---")
+        }
+        appendLine("]")
+        appendLine()
+      }
+
+      val videoAttachments = attachments.filter { it.type == AttachmentType.VIDEO }
+      if (videoAttachments.isNotEmpty()) {
+        appendLine("[Attached Video Metadata:")
+        videoAttachments.forEach { v ->
+          appendLine("- Video: ${v.name} (Type: ${v.mimeType}, Size: ${v.sizeBytes / 1024} KB)")
+        }
+        appendLine("Note: If the current model does not support video frames, analyze based on context and metadata.]")
+        appendLine()
+      }
+
+      append(prompt)
+    }
+
+    val imageAttachments = attachments.filter { it.type == AttachmentType.IMAGE && !it.base64Data.isNullOrBlank() }
+
     var activeCall: Call? = null
 
     try {
@@ -280,9 +312,21 @@ Keep responses clear and concise.
               put("parts", JSONArray().put(JSONObject().apply { put("text", msg.content) }))
             })
           }
+
+          val userParts = JSONArray()
+          userParts.put(JSONObject().apply { put("text", promptWithFiles) })
+          imageAttachments.forEach { img ->
+            userParts.put(JSONObject().apply {
+              put("inlineData", JSONObject().apply {
+                put("mimeType", img.mimeType.ifEmpty { "image/jpeg" })
+                put("data", img.base64Data)
+              })
+            })
+          }
+
           contentsArray.put(JSONObject().apply {
             put("role", "user")
-            put("parts", JSONArray().put(JSONObject().apply { put("text", prompt) }))
+            put("parts", userParts)
           })
 
           val bodyJson = JSONObject().apply {
@@ -360,10 +404,30 @@ Keep responses clear and concise.
                 put("content", msg.content)
               })
             }
-            put(JSONObject().apply {
-              put("role", "user")
-              put("content", prompt)
-            })
+            if (imageAttachments.isNotEmpty()) {
+              val parts = JSONArray()
+              parts.put(JSONObject().apply {
+                put("type", "text")
+                put("text", promptWithFiles)
+              })
+              imageAttachments.forEach { img ->
+                parts.put(JSONObject().apply {
+                  put("type", "image_url")
+                  put("image_url", JSONObject().apply {
+                    put("url", "data:${img.mimeType.ifEmpty { "image/jpeg" }};base64,${img.base64Data}")
+                  })
+                })
+              }
+              put(JSONObject().apply {
+                put("role", "user")
+                put("content", parts)
+              })
+            } else {
+              put(JSONObject().apply {
+                put("role", "user")
+                put("content", promptWithFiles)
+              })
+            }
           }
 
           val bodyJson = JSONObject().apply {
@@ -436,10 +500,32 @@ Keep responses clear and concise.
                 put("content", msg.content)
               })
             }
-            put(JSONObject().apply {
-              put("role", "user")
-              put("content", prompt)
-            })
+            if (imageAttachments.isNotEmpty()) {
+              val parts = JSONArray()
+              imageAttachments.forEach { img ->
+                parts.put(JSONObject().apply {
+                  put("type", "image")
+                  put("source", JSONObject().apply {
+                    put("type", "base64")
+                    put("media_type", img.mimeType.ifEmpty { "image/jpeg" })
+                    put("data", img.base64Data)
+                  })
+                })
+              }
+              parts.put(JSONObject().apply {
+                put("type", "text")
+                put("text", promptWithFiles)
+              })
+              put(JSONObject().apply {
+                put("role", "user")
+                put("content", parts)
+              })
+            } else {
+              put(JSONObject().apply {
+                put("role", "user")
+                put("content", promptWithFiles)
+              })
+            }
           }
 
           val bodyJson = JSONObject().apply {

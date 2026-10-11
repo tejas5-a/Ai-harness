@@ -58,6 +58,10 @@ class ProjectRepository(private val context: Context) {
     }
   }
 
+  fun getProjectById(projectId: String): Project? {
+    return getProjects().find { it.id == projectId }
+  }
+
   fun createProject(name: String, type: ProjectType, description: String): Project {
     val sanitized = name.trim().replace(Regex("[^a-zA-Z0-9_-]"), "_").ifEmpty { "project_${System.currentTimeMillis()}" }
     val projectDir = File(workspaceDir, sanitized)

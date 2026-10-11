@@ -167,6 +167,24 @@ data class AgentToolAction(
   val status: String = "PENDING"
 )
 
+enum class AttachmentType {
+  IMAGE,
+  VIDEO,
+  DOCUMENT,
+  CODE
+}
+
+data class ChatAttachment(
+  val id: String = UUID.randomUUID().toString(),
+  val name: String,
+  val mimeType: String,
+  val sizeBytes: Long,
+  val uriString: String? = null,
+  val type: AttachmentType,
+  val textContent: String? = null,
+  val base64Data: String? = null
+)
+
 data class ChatMessage(
   val id: String = UUID.randomUUID().toString(),
   val sender: MessageSender,
@@ -175,7 +193,8 @@ data class ChatMessage(
   val timestamp: Long = System.currentTimeMillis(),
   val isStreaming: Boolean = false,
   val error: String? = null,
-  val providerUsed: String? = null
+  val providerUsed: String? = null,
+  val attachments: List<ChatAttachment> = emptyList()
 )
 
 enum class TerminalEntryType {

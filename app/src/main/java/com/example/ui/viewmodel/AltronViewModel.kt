@@ -1,11 +1,19 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
+import android.util.Base64
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.model.AgentToolAction
 import com.example.data.model.AgentMode
 import com.example.data.model.ApiProviderConfig
+import com.example.data.model.AttachmentType
+import com.example.data.model.BackgroundTask
+import com.example.data.model.BackgroundTaskState
+import com.example.data.model.ChatAttachment
 import com.example.data.model.ChatMessage
 import com.example.data.model.EditorTab
 import com.example.data.model.MessageSender
@@ -17,14 +25,20 @@ import com.example.data.model.TerminalEntry
 import com.example.data.model.TerminalEntryType
 import com.example.data.repository.ApiKeyRepository
 import com.example.data.repository.AiAgentService
+import com.example.data.repository.BackgroundTaskManager
 import com.example.data.repository.ProjectRepository
 import com.example.data.repository.TerminalManager
 import com.example.ui.navigation.Screen
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.BufferedReader
 import java.io.File
+import java.io.InputStreamReader
+import java.nio.charset.StandardCharsets
 
 class AltronViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -32,6 +46,7 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
   private val apiKeyRepo = ApiKeyRepository(application)
   private val agentService = AiAgentService()
   private val terminalManager = TerminalManager()
+  private val backgroundTaskManager = BackgroundTaskManager(application, projectRepo, apiKeyRepo, agentService)
 
   // Screen & UI
   private val _currentScreen = MutableStateFlow(Screen.CHAT)
@@ -94,6 +109,131 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
     )
   )
   val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
+
+  // Pending attachments in composer
+  private val _pendingAttachments = MutableStateFlow<List<ChatAttachment>>(emptyList())
+  val pendingAttachments: StateFlow<List<ChatAttachment>> = _pendingAttachments.asStateFlow()
+
+  fun addAttachment(attachment: ChatAttachment) {
+    _pendingAttachments.value = _pendingAttachments.value + attachment
+  }
+
+  fun removePendingAttachment(attachmentId: String) {
+    _pendingAttachments.value = _pendingAttachments.value.filter { it.id != attachmentId }
+  }
+
+  fun clearPendingAttachments() {
+    _pendingAttachments.value = emptyList()
+  }
+
+  fun processUriAttachment(context: Context, uri: Uri, explicitType: AttachmentType? = null) {
+    viewModelScope.launch(Dispatchers.IO) {
+      try {
+        val contentResolver = context.contentResolver
+        var fileName = "file_${System.currentTimeMillis()}"
+        var sizeBytes: Long = 0
+
+        contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+          val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+          val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+          if (cursor.moveToFirst()) {
+            if (nameIndex != -1) fileName = cursor.getString(nameIndex) ?: fileName
+            if (sizeIndex != -1) sizeBytes = cursor.getLong(sizeIndex)
+          }
+        }
+
+        val mimeType = contentResolver.getType(uri) ?: when {
+          fileName.endsWith(".png", true) -> "image/png"
+          fileName.endsWith(".jpg", true) || fileName.endsWith(".jpeg", true) -> "image/jpeg"
+          fileName.endsWith(".webp", true) -> "image/webp"
+          fileName.endsWith(".mp4", true) -> "video/mp4"
+          fileName.endsWith(".mov", true) -> "video/quicktime"
+          fileName.endsWith(".webm", true) -> "video/webm"
+          fileName.endsWith(".pdf", true) -> "application/pdf"
+          fileName.endsWith(".json", true) -> "application/json"
+          fileName.endsWith(".html", true) -> "text/html"
+          fileName.endsWith(".css", true) -> "text/css"
+          fileName.endsWith(".js", true) -> "text/javascript"
+          fileName.endsWith(".ts", true) || fileName.endsWith(".tsx", true) -> "text/typescript"
+          fileName.endsWith(".py", true) -> "text/x-python"
+          fileName.endsWith(".kt", true) -> "text/x-kotlin"
+          fileName.endsWith(".java", true) -> "text/x-java"
+          else -> "text/plain"
+        }
+
+        val maxSizeBytes = 25L * 1024L * 1024L // 25MB limit
+        if (sizeBytes > maxSizeBytes) {
+          withContext(Dispatchers.Main) {
+            _statusMessage.value = "⚠️ File '$fileName' (${sizeBytes / (1024 * 1024)}MB) exceeds 25MB upload limit."
+          }
+          return@launch
+        }
+
+        val detectedType = explicitType ?: when {
+          mimeType.startsWith("image/") -> AttachmentType.IMAGE
+          mimeType.startsWith("video/") -> AttachmentType.VIDEO
+          fileName.endsWith(".kt") || fileName.endsWith(".java") || fileName.endsWith(".py") ||
+          fileName.endsWith(".js") || fileName.endsWith(".ts") || fileName.endsWith(".tsx") ||
+          fileName.endsWith(".jsx") || fileName.endsWith(".html") || fileName.endsWith(".css") ||
+          fileName.endsWith(".dart") || fileName.endsWith(".json") || fileName.endsWith(".sh") -> AttachmentType.CODE
+          else -> AttachmentType.DOCUMENT
+        }
+
+        var base64Data: String? = null
+        var textContent: String? = null
+
+        when (detectedType) {
+          AttachmentType.IMAGE -> {
+            contentResolver.openInputStream(uri)?.use { stream ->
+              val bytes = stream.readBytes()
+              base64Data = Base64.encodeToString(bytes, Base64.NO_WRAP)
+              if (sizeBytes == 0L) sizeBytes = bytes.size.toLong()
+            }
+          }
+          AttachmentType.DOCUMENT, AttachmentType.CODE -> {
+            contentResolver.openInputStream(uri)?.use { stream ->
+              val reader = BufferedReader(InputStreamReader(stream, StandardCharsets.UTF_8))
+              val sb = java.lang.StringBuilder()
+              var line: String?
+              var readChars = 0
+              while (reader.readLine().also { line = it } != null) {
+                sb.appendLine(line)
+                readChars += line?.length ?: 0
+                if (readChars > 150_000) {
+                  sb.appendLine("\n... [Truncated at 150KB for context limit]")
+                  break
+                }
+              }
+              textContent = sb.toString()
+              if (sizeBytes == 0L) sizeBytes = textContent!!.toByteArray().size.toLong()
+            }
+          }
+          AttachmentType.VIDEO -> {
+            if (sizeBytes == 0L) sizeBytes = 1024L * 1024L
+          }
+        }
+
+        val attachment = ChatAttachment(
+          name = fileName,
+          mimeType = mimeType,
+          sizeBytes = sizeBytes,
+          uriString = uri.toString(),
+          type = detectedType,
+          textContent = textContent,
+          base64Data = base64Data
+        )
+
+        withContext(Dispatchers.Main) {
+          _pendingAttachments.value = _pendingAttachments.value + attachment
+          _statusMessage.value = "Attached '$fileName'"
+        }
+      } catch (e: Exception) {
+        withContext(Dispatchers.Main) {
+          _statusMessage.value = "Failed to load attachment: ${e.localizedMessage}"
+        }
+      }
+    }
+  }
 
   fun startNewChat() {
     val currentMsgs = _chatMessages.value
@@ -365,15 +505,35 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
     }
   }
 
-  fun deleteFile(file: File) {
-    val proj = _activeProject.value ?: return
-    requestApproval("Delete '${file.name}'? This cannot be undone.") {
-      projectRepo.deleteFile(proj, file)
-      // Close tab if open
-      val tab = _openTabs.value.find { it.file.absolutePath == file.absolutePath }
-      if (tab != null) closeTab(tab)
-      refreshFiles()
-      _statusMessage.value = "Deleted '${file.name}'"
+  fun deleteFile(file: File): Boolean {
+    val proj = _activeProject.value ?: run {
+      _statusMessage.value = "No active project."
+      return false
+    }
+
+    return try {
+      val success = projectRepo.deleteFile(proj, file)
+      if (success) {
+        // If the deleted file is currently open in the editor, close it safely and clear its editor state
+        val tab = _openTabs.value.find { it.file.absolutePath == file.absolutePath }
+        if (tab != null) {
+          closeTab(tab)
+        }
+        if (_activeTab.value?.file?.absolutePath == file.absolutePath) {
+          _activeTab.value = null
+          _activeContent.value = ""
+          _isContentModified.value = false
+        }
+        refreshFiles()
+        _statusMessage.value = "Deleted '${file.name}'"
+        true
+      } else {
+        _statusMessage.value = "Failed to delete '${file.name}'. File may be locked or not found."
+        false
+      }
+    } catch (e: Exception) {
+      _statusMessage.value = "Error deleting file: ${e.localizedMessage}"
+      false
     }
   }
 
@@ -501,10 +661,19 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
 
   fun sendAgentMessage(userText: String, mode: AgentMode = _agentMode.value) {
     val prompt = userText.trim()
-    if (prompt.isEmpty()) return
+    val attachmentsToSend = _pendingAttachments.value
+    if (prompt.isEmpty() && attachmentsToSend.isEmpty()) return
+
+    // Clear pending attachments now that they are queued to send
+    _pendingAttachments.value = emptyList()
 
     val currentMsgs = _chatMessages.value.toMutableList()
-    currentMsgs.add(ChatMessage(sender = MessageSender.USER, content = prompt))
+    val userMsg = ChatMessage(
+      sender = MessageSender.USER,
+      content = if (prompt.isNotEmpty()) prompt else "Attached files for review and analysis:",
+      attachments = attachmentsToSend
+    )
+    currentMsgs.add(userMsg)
 
     val provider = _activeProvider.value
     val agentMsgId = java.util.UUID.randomUUID().toString()
@@ -527,11 +696,12 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
 
       try {
         agentService.streamAgentResponse(
-          prompt = prompt,
+          prompt = userMsg.content,
           config = provider,
           mode = mode,
           projectContext = projectContext,
-          history = currentMsgs.dropLast(1)
+          history = currentMsgs.dropLast(1),
+          attachments = attachmentsToSend
         ).collect { chunk ->
           accumulated.append(chunk)
           val list = _chatMessages.value.toMutableList()
@@ -710,6 +880,63 @@ jobs:
 
   fun dismissApproval() {
     _pendingApprovalAction.value = null
+  }
+
+  // ==================== BACKGROUND AI TASKS ====================
+
+  val backgroundTasks: StateFlow<List<BackgroundTask>> = backgroundTaskManager.tasks
+  val taskConcurrencyLimit: StateFlow<Int> = backgroundTaskManager.concurrencyLimit
+
+  fun submitBackgroundTask(
+    title: String,
+    description: String,
+    prompt: String,
+    project: Project? = _activeProject.value
+  ): BackgroundTask? {
+    val targetProj = project ?: _activeProject.value ?: run {
+      _statusMessage.value = "Please select or open a project first."
+      return null
+    }
+
+    val task = backgroundTaskManager.submitTask(
+      title = title,
+      description = description,
+      prompt = prompt,
+      project = targetProj,
+      providerConfig = _activeProvider.value
+    )
+    _statusMessage.value = "Started background task '${task.title}'"
+    return task
+  }
+
+  fun cancelBackgroundTask(taskId: String) {
+    backgroundTaskManager.cancelTask(taskId)
+    _statusMessage.value = "Cancelled task."
+  }
+
+  fun retryBackgroundTask(taskId: String) {
+    backgroundTaskManager.retryTask(taskId)
+    _statusMessage.value = "Retrying task..."
+  }
+
+  fun approveBackgroundTaskAction(taskId: String) {
+    backgroundTaskManager.approveTaskAction(taskId)
+    _statusMessage.value = "Approved task action."
+  }
+
+  fun deleteBackgroundTask(taskId: String) {
+    backgroundTaskManager.deleteTask(taskId)
+    _statusMessage.value = "Removed task."
+  }
+
+  fun clearFinishedBackgroundTasks() {
+    val count = backgroundTaskManager.clearFinishedTasks()
+    _statusMessage.value = "Cleared $count finished tasks."
+  }
+
+  fun setTaskConcurrency(limit: Int) {
+    backgroundTaskManager.setConcurrencyLimit(limit)
+    _statusMessage.value = "Concurrency limit set to $limit."
   }
 
   // ==================== HELPERS ====================

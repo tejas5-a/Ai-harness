@@ -1,11 +1,18 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Terminal
@@ -17,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -30,12 +38,14 @@ import com.example.ui.theme.GlassBorder
 import com.example.ui.theme.GlassSurface
 
 /**
- * AltronTopBar: Translucent glass styling with soft ambient shadow.
+ * AltronTopBar: Translucent glass styling with soft ambient shadow and active task indicator.
  */
 @Composable
 fun AltronTopBar(
   activeProject: Project?,
   onMenuClicked: () -> Unit,
+  activeTasksCount: Int = 0,
+  onTasksClicked: (() -> Unit)? = null,
   onTerminalClicked: (() -> Unit)? = null,
   onPreviewClicked: (() -> Unit)? = null,
   modifier: Modifier = Modifier
@@ -76,6 +86,35 @@ fun AltronTopBar(
       }
 
       Row(verticalAlignment = Alignment.CenterVertically) {
+        if (onTasksClicked != null) {
+          Box {
+            IconButton(onClick = onTasksClicked) {
+              Icon(
+                imageVector = Icons.Default.Autorenew,
+                contentDescription = "Background Tasks",
+                tint = if (activeTasksCount > 0) BrandPrimaryOrange else BrandTextBlack
+              )
+            }
+            if (activeTasksCount > 0) {
+              Box(
+                modifier = Modifier
+                  .align(Alignment.TopEnd)
+                  .padding(top = 4.dp, end = 4.dp)
+                  .size(16.dp)
+                  .clip(CircleShape)
+                  .background(BrandPrimaryOrange),
+                contentAlignment = Alignment.Center
+              ) {
+                Text(
+                  text = "$activeTasksCount",
+                  fontSize = 9.sp,
+                  fontWeight = FontWeight.Bold,
+                  color = BrandTextBlack
+                )
+              }
+            }
+          }
+        }
         if (onPreviewClicked != null) {
           IconButton(onClick = onPreviewClicked) {
             Icon(
