@@ -154,6 +154,8 @@ enum class MessageSender {
   SYSTEM
 }
 
+enum class AgentMode { ASK, CODE, AGENT }
+
 data class AgentToolAction(
   val id: String = UUID.randomUUID().toString(),
   val toolName: String, // "create_file", "edit_file", "run_terminal", "inspect_project"

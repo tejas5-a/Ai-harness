@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.model.AgentToolAction
+import com.example.data.model.AgentMode
 import com.example.data.model.ApiProviderConfig
 import com.example.data.model.ChatMessage
 import com.example.data.model.EditorTab
@@ -85,6 +86,13 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
     )
   )
   val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
+
+  private val _agentMode = MutableStateFlow(AgentMode.ASK)
+  val agentMode: StateFlow<AgentMode> = _agentMode.asStateFlow()
+
+  fun setAgentMode(mode: AgentMode) {
+    _agentMode.value = mode
+  }
 
   private val _isAgentThinking = MutableStateFlow(false)
   val isAgentThinking: StateFlow<Boolean> = _isAgentThinking.asStateFlow()
@@ -347,7 +355,7 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
 
   // ==================== AI AGENT ====================
 
-  fun sendAgentMessage(userText: String) {
+  fun sendAgentMessage(userText: String, mode: AgentMode = _agentMode.value) {
     val prompt = userText.trim()
     if (prompt.isEmpty()) return
 
@@ -377,6 +385,7 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
         agentService.streamAgentResponse(
           prompt = prompt,
           config = provider,
+          mode = mode,
           projectContext = projectContext,
           history = currentMsgs.dropLast(1)
         ).collect { chunk ->

@@ -28,6 +28,9 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,6 +45,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.AgentToolAction
+import com.example.data.model.AgentMode
 import com.example.data.model.ChatMessage
 import com.example.data.model.MessageSender
 import com.example.ui.components.AltronGlassCard
@@ -83,9 +89,41 @@ fun AiAgentScreen(
 
   var inputPrompt by remember { mutableStateOf("") }
   val listState = rememberLazyListState()
+  var isAutoScrollingEnabled by remember { mutableStateOf(true) }
+
+  // Detect manual scrolling interaction
+  LaunchedEffect(listState) {
+      snapshotFlow { listState.isScrollInProgress }
+          .collect { isScrolling ->
+              if (isScrolling) {
+                  // If user is interacting, check if they are at the bottom
+                  val layoutInfo = listState.layoutInfo
+                  val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
+                  val isAtBottom = lastVisibleItem?.index == layoutInfo.totalItemsCount - 1
+                  if (!isAtBottom) {
+                      isAutoScrollingEnabled = false
+                  }
+              }
+          }
+  }
+
+  // Monitor if user reaches bottom to re-enable
+  val isAtBottom by remember {
+      derivedStateOf {
+          val layoutInfo = listState.layoutInfo
+          val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
+          lastVisibleItem != null && lastVisibleItem.index == layoutInfo.totalItemsCount - 1
+      }
+  }
+
+  LaunchedEffect(isAtBottom) {
+      if (isAtBottom) {
+          isAutoScrollingEnabled = true
+      }
+  }
 
   LaunchedEffect(messages.size, messages.lastOrNull()?.content?.length) {
-    if (messages.isNotEmpty()) {
+    if (isAutoScrollingEnabled && messages.isNotEmpty()) {
       listState.animateScrollToItem(messages.size - 1)
     }
   }
@@ -95,7 +133,6 @@ fun AiAgentScreen(
       .fillMaxSize()
       .padding(horizontal = 14.dp, vertical = 8.dp)
   ) {
-    // Agent Top Status Header
     AltronGlassCard(
       modifier = Modifier
         .fillMaxWidth()
@@ -145,6 +182,22 @@ fun AiAgentScreen(
             }
         }
       }
+    }
+
+    Spacer(modifier = Modifier.height(10.dp))
+    
+    // Mode Selector
+    val currentMode by viewModel.agentMode.collectAsState()
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        AgentMode.values().forEach { mode ->
+            val isSelected = currentMode == mode
+            AltronPrimaryButton(
+                text = mode.name,
+                onClick = { viewModel.setAgentMode(mode) },
+                modifier = Modifier.weight(1f),
+                enabled = !isSelected
+            )
+        }
     }
 
     Spacer(modifier = Modifier.height(10.dp))
@@ -322,11 +375,28 @@ fun AiAgentScreen(
 }
 
 @Composable
+fun CopyButton(text: String) {
+    val clipboardManager = LocalClipboardManager.current
+    IconButton(
+        onClick = { clipboardManager.setText(AnnotatedString(text)) },
+        modifier = Modifier.size(24.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Default.ContentCopy,
+            contentDescription = "Copy",
+            tint = AltronOrange,
+            modifier = Modifier.size(16.dp)
+        )
+    }
+}
+
+@Composable
 fun ChatMessageBubble(
   message: ChatMessage,
   onExecuteTool: (AgentToolAction) -> Unit
 ) {
   val isUser = message.sender == MessageSender.USER
+  val clipboardManager = LocalClipboardManager.current
 
   Column(
     modifier = Modifier.fillMaxWidth(),
@@ -340,11 +410,16 @@ fun ChatMessageBubble(
           .border(1.dp, AltronOrange.copy(alpha = 0.4f), RoundedCornerShape(topStart = 16.dp, topEnd = 4.dp, bottomStart = 16.dp, bottomEnd = 16.dp))
           .padding(14.dp)
       ) {
-        Text(
-          text = message.content,
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurface
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+              text = message.content,
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurface,
+              modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            CopyButton(message.content)
+        }
       }
     } else {
       AltronGlassCard(
@@ -384,13 +459,17 @@ fun ChatMessageBubble(
               )
             }
 
-            if (message.providerUsed != null) {
-              Text(
-                text = message.providerUsed,
-                fontSize = 10.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontFamily = FontFamily.Monospace
-              )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (message.providerUsed != null) {
+                  Text(
+                    text = message.providerUsed,
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontFamily = FontFamily.Monospace
+                  )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                CopyButton(message.content)
             }
           }
 

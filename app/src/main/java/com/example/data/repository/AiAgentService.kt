@@ -1,6 +1,7 @@
 package com.example.data.repository
 
 import com.example.data.model.AgentToolAction
+import com.example.data.model.AgentMode
 import com.example.data.model.ApiProviderConfig
 import com.example.data.model.ChatMessage
 import com.example.data.model.MessageSender
@@ -231,6 +232,7 @@ class AiAgentService {
   fun streamAgentResponse(
     prompt: String,
     config: ApiProviderConfig,
+    mode: AgentMode = AgentMode.AGENT,
     projectContext: String = "",
     history: List<ChatMessage> = emptyList()
   ): Flow<String> = callbackFlow {
@@ -240,7 +242,10 @@ class AiAgentService {
       return@callbackFlow
     }
 
-    val systemInstruction = """You are ALTRON CODE AI, an expert mobile coding agent running on Android.
+    val modeInstruction = when (mode) {
+        AgentMode.ASK -> "You are a helpful assistant. Provide clear answers."
+        AgentMode.CODE -> "You are a coding assistant. Provide code snippets and explanations."
+        AgentMode.AGENT -> """You are ALTRON CODE AI, an expert mobile coding agent running on Android.
 You help developers write code, inspect files, debug issues, and execute terminal commands safely.
 When you suggest a shell command, format it as:
 ```bash
@@ -250,6 +255,12 @@ When you suggest creating or replacing a file, format it as:
 ```file:<relative_path>
 <file_contents>
 ```
+"""
+    }
+
+    val systemInstruction = """You are ALTRON CODE AI, an expert mobile coding agent running on Android.
+$modeInstruction
+
 Project Context:
 $projectContext
 Keep responses clear and concise.
