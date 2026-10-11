@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,14 +24,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -42,6 +48,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -54,7 +61,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,15 +73,17 @@ import com.example.data.model.ProjectFile
 import com.example.data.model.ProjectType
 import com.example.ui.components.AltronGlassCard
 import com.example.ui.components.AltronPrimaryButton
-import com.example.ui.components.AltronSecondaryButton
 import com.example.ui.components.StatusBadge
-import com.example.ui.navigation.Screen
 import com.example.ui.theme.AltronAmber
-import com.example.ui.theme.AltronOrange
-import com.example.ui.theme.AltronOrangeBright
-import com.example.ui.theme.AltronOrangeRim
-import com.example.ui.theme.Graphite700
-import com.example.ui.theme.Graphite800
+import com.example.ui.theme.BrandPrimaryOrange
+import com.example.ui.theme.BrandTextBlack
+import com.example.ui.theme.BrandTextSecondary
+import com.example.ui.theme.CodeBlockBackground
+import com.example.ui.theme.CodeBlockText
+import com.example.ui.theme.LightBorder
+import com.example.ui.theme.LightSurface
+import com.example.ui.theme.LightSurfaceElevated
+import com.example.ui.theme.PureWhiteBackground
 import com.example.ui.theme.TerminalCyan
 import com.example.ui.theme.TerminalGreen
 import com.example.ui.theme.TerminalRed
@@ -84,94 +95,87 @@ fun ProjectsScreen(
   viewModel: AltronViewModel,
   modifier: Modifier = Modifier
 ) {
+  val context = LocalContext.current
   val projects by viewModel.projects.collectAsState()
   val activeProject by viewModel.activeProject.collectAsState()
   val currentFiles by viewModel.currentFiles.collectAsState()
   val currentDir by viewModel.currentDirectory.collectAsState()
+  val activeTab by viewModel.activeTab.collectAsState()
+  val activeContent by viewModel.activeContent.collectAsState()
+  val isContentModified by viewModel.isContentModified.collectAsState()
 
   var showNewProjectDialog by remember { mutableStateOf(false) }
   var showNewFileDialog by remember { mutableStateOf(false) }
   var showNewFolderDialog by remember { mutableStateOf(false) }
-  var showProjectMenu by remember { mutableStateOf(false) }
+  var renamingFile by remember { mutableStateOf<File?>(null) }
+  var viewingFileEditor by remember { mutableStateOf(false) }
 
   Column(
     modifier = modifier
       .fillMaxSize()
       .padding(16.dp),
-    verticalArrangement = Arrangement.spacedBy(14.dp)
+    verticalArrangement = Arrangement.spacedBy(12.dp)
   ) {
-    // Header & Workspace Picker
-    AltronGlassCard(
-      modifier = Modifier
-        .fillMaxWidth()
-        .testTag("projects_header_card"),
-      hasGlowBorder = true
+    // Header
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically
     ) {
-      Column(modifier = Modifier.padding(16.dp)) {
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Column {
-            Text(
-              text = "PROJECT WORKSPACE",
-              style = MaterialTheme.typography.labelSmall,
-              fontWeight = FontWeight.Bold,
-              color = AltronOrange
-            )
-            Text(
-              text = activeProject?.name ?: "No Project",
-              style = MaterialTheme.typography.titleLarge,
-              fontWeight = FontWeight.Black,
-              color = MaterialTheme.colorScheme.onSurface
-            )
-          }
+      Column {
+        Text(
+          text = "Projects & Files",
+          style = MaterialTheme.typography.titleLarge.copy(
+            fontWeight = FontWeight.Bold,
+            color = BrandTextBlack
+          )
+        )
+        Text(
+          text = "${projects.size} active workspaces on device",
+          fontSize = 12.sp,
+          color = BrandTextSecondary
+        )
+      }
 
-          Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            AltronPrimaryButton(
-              text = "New",
-              icon = Icons.Default.Add,
-              onClick = { showNewProjectDialog = true },
-              modifier = Modifier.testTag("create_new_project_btn")
-            )
-          }
-        }
+      AltronPrimaryButton(
+        text = "New Project",
+        icon = Icons.Default.Add,
+        onClick = { showNewProjectDialog = true }
+      )
+    }
 
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Horizontal Project Switcher Pills
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-          horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-          projects.forEach { proj ->
-            val isCurrent = proj.id == activeProject?.id
-            Box(
-              modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
-                .background(if (isCurrent) AltronOrange.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
-                .border(
-                  1.dp,
-                  if (isCurrent) AltronOrange else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                  RoundedCornerShape(10.dp)
-                )
-                .clickable { viewModel.selectProject(proj) }
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-            ) {
-              Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                  text = proj.name,
-                  fontSize = 12.sp,
-                  fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                  color = if (isCurrent) AltronOrangeBright else MaterialTheme.colorScheme.onSurface
-                )
-                if (isCurrent) {
-                  Spacer(modifier = Modifier.width(6.dp))
-                  StatusBadge(text = proj.type.badge, color = TerminalCyan)
-                }
+    // Horizontal Project Switcher
+    if (projects.isNotEmpty()) {
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+      ) {
+        projects.forEach { proj ->
+          val isCurrent = proj.id == activeProject?.id
+          Box(
+            modifier = Modifier
+              .clip(RoundedCornerShape(10.dp))
+              .background(if (isCurrent) BrandPrimaryOrange else LightSurfaceElevated)
+              .border(
+                1.dp,
+                if (isCurrent) BrandPrimaryOrange else LightBorder,
+                RoundedCornerShape(10.dp)
+              )
+              .clickable { viewModel.selectProject(proj) }
+              .padding(horizontal = 14.dp, vertical = 8.dp)
+          ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Text(
+                text = proj.name,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = BrandTextBlack
+              )
+              if (isCurrent) {
+                Spacer(modifier = Modifier.width(6.dp))
+                StatusBadge(text = proj.type.badge, color = BrandTextBlack)
               }
             }
           }
@@ -179,28 +183,119 @@ fun ProjectsScreen(
       }
     }
 
-    // Security Boundary Chip
-    Row(
+    // PROMINENT ORANGE ACTION BUTTON: "Download Project ZIP"
+    Button(
+      onClick = { viewModel.downloadProjectZip(context) },
       modifier = Modifier
         .fillMaxWidth()
-        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-        .border(1.dp, TerminalGreen.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-        .padding(horizontal = 10.dp, vertical = 6.dp),
-      verticalAlignment = Alignment.CenterVertically
+        .defaultMinSize(minHeight = 48.dp)
+        .testTag("download_project_zip_button"),
+      shape = RoundedCornerShape(12.dp),
+      colors = ButtonDefaults.buttonColors(
+        containerColor = BrandPrimaryOrange,
+        contentColor = BrandTextBlack
+      )
     ) {
-      Icon(
-        imageVector = Icons.Default.Lock,
-        contentDescription = null,
-        tint = TerminalGreen,
-        modifier = Modifier.size(14.dp)
-      )
-      Spacer(modifier = Modifier.width(6.dp))
-      Text(
-        text = "SANDBOX BOUNDARY ENFORCED: Real files scoped to project directory",
-        fontSize = 10.sp,
-        fontWeight = FontWeight.SemiBold,
-        color = TerminalGreen
-      )
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+      ) {
+        Icon(
+          imageVector = Icons.Default.FolderZip,
+          contentDescription = null,
+          tint = BrandTextBlack,
+          modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+          text = "Download Project ZIP",
+          style = MaterialTheme.typography.titleMedium.copy(
+            fontWeight = FontWeight.Bold,
+            color = BrandTextBlack,
+            fontSize = 15.sp
+          )
+        )
+      }
+    }
+
+    // Integrated File Viewer / Editor panel if opened
+    if (activeTab != null && viewingFileEditor) {
+      Surface(
+        modifier = Modifier
+          .fillMaxWidth()
+          .clip(RoundedCornerShape(12.dp))
+          .border(1.dp, LightBorder, RoundedCornerShape(12.dp)),
+        color = LightSurfaceElevated
+      ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Icon(
+                imageVector = Icons.Default.Description,
+                contentDescription = null,
+                tint = BrandPrimaryOrange,
+                modifier = Modifier.size(18.dp)
+              )
+              Spacer(modifier = Modifier.width(6.dp))
+              Text(
+                text = "${activeTab!!.file.name} ${if (isContentModified) "•" else ""}",
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                color = BrandTextBlack
+              )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+              Button(
+                onClick = { viewModel.saveActiveFile() },
+                colors = ButtonDefaults.buttonColors(
+                  containerColor = BrandPrimaryOrange,
+                  contentColor = BrandTextBlack
+                ),
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+              ) {
+                Icon(imageVector = Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(14.dp), tint = BrandTextBlack)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Save", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandTextBlack)
+              }
+
+              IconButton(onClick = { viewModel.downloadIndividualFile(context, activeTab!!.file) }) {
+                Icon(imageVector = Icons.Default.FileDownload, contentDescription = "Download File", tint = BrandTextBlack)
+              }
+
+              IconButton(onClick = { viewingFileEditor = false }) {
+                Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = BrandTextBlack)
+              }
+            }
+          }
+
+          Spacer(modifier = Modifier.height(8.dp))
+
+          OutlinedTextField(
+            value = activeContent,
+            onValueChange = { viewModel.updateActiveContent(it) },
+            modifier = Modifier
+              .fillMaxWidth()
+              .height(200.dp),
+            textStyle = MaterialTheme.typography.bodyMedium.copy(
+              fontFamily = FontFamily.Monospace,
+              color = BrandTextBlack,
+              fontSize = 12.sp
+            ),
+            colors = OutlinedTextFieldDefaults.colors(
+              focusedContainerColor = PureWhiteBackground,
+              unfocusedContainerColor = PureWhiteBackground,
+              focusedBorderColor = BrandPrimaryOrange,
+              unfocusedBorderColor = LightBorder
+            )
+          )
+        }
+      }
     }
 
     // File Explorer Toolbar
@@ -209,7 +304,6 @@ fun ProjectsScreen(
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically
     ) {
-      // Directory Breadcrumbs
       Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.weight(1f)
@@ -224,7 +318,7 @@ fun ProjectsScreen(
             Icon(
               imageVector = Icons.Default.ArrowBack,
               contentDescription = "Up",
-              tint = AltronOrange,
+              tint = BrandPrimaryOrange,
               modifier = Modifier.size(18.dp)
             )
           }
@@ -237,27 +331,27 @@ fun ProjectsScreen(
         Text(
           text = displayPath,
           style = MaterialTheme.typography.bodyMedium,
-          fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-          color = MaterialTheme.colorScheme.onSurface,
+          fontFamily = FontFamily.Monospace,
+          color = BrandTextBlack,
           maxLines = 1,
           fontWeight = FontWeight.Bold
         )
       }
 
       // Quick File Action Buttons
-      Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+      Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         IconButton(
           onClick = { showNewFileDialog = true },
           modifier = Modifier
             .size(38.dp)
-            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+            .background(LightSurface, RoundedCornerShape(8.dp))
+            .border(1.dp, LightBorder, RoundedCornerShape(8.dp))
             .testTag("file_explorer_add_file_btn")
         ) {
           Icon(
             imageVector = Icons.Default.NoteAdd,
             contentDescription = "New File",
-            tint = AltronOrange,
+            tint = BrandPrimaryOrange,
             modifier = Modifier.size(18.dp)
           )
         }
@@ -266,8 +360,8 @@ fun ProjectsScreen(
           onClick = { showNewFolderDialog = true },
           modifier = Modifier
             .size(38.dp)
-            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+            .background(LightSurface, RoundedCornerShape(8.dp))
+            .border(1.dp, LightBorder, RoundedCornerShape(8.dp))
         ) {
           Icon(
             imageVector = Icons.Default.CreateNewFolder,
@@ -281,20 +375,20 @@ fun ProjectsScreen(
           onClick = { viewModel.refreshFiles() },
           modifier = Modifier
             .size(38.dp)
-            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+            .background(LightSurface, RoundedCornerShape(8.dp))
+            .border(1.dp, LightBorder, RoundedCornerShape(8.dp))
         ) {
           Icon(
             imageVector = Icons.Default.Refresh,
             contentDescription = "Refresh",
-            tint = MaterialTheme.colorScheme.onSurface,
+            tint = BrandTextBlack,
             modifier = Modifier.size(18.dp)
           )
         }
       }
     }
 
-    // File List
+    // Hierarchical File List
     LazyColumn(
       modifier = Modifier
         .fillMaxWidth()
@@ -313,7 +407,7 @@ fun ProjectsScreen(
               Text(
                 text = "Folder is empty. Create a new file or directory.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = BrandTextSecondary
               )
             }
           }
@@ -328,8 +422,14 @@ fun ProjectsScreen(
               viewModel.navigateToDirectory(projectFile.file)
             } else {
               viewModel.openFile(projectFile.file)
-              // viewModel.setScreen(Screen.EDITOR)
+              viewingFileEditor = true
             }
+          },
+          onDownload = {
+            viewModel.downloadIndividualFile(context, projectFile.file)
+          },
+          onRename = {
+            renamingFile = projectFile.file
           },
           onDelete = {
             viewModel.deleteFile(projectFile.file)
@@ -339,7 +439,7 @@ fun ProjectsScreen(
     }
   }
 
-  // New Project Dialog
+  // Dialogs
   if (showNewProjectDialog) {
     NewProjectModal(
       onDismiss = { showNewProjectDialog = false },
@@ -350,18 +450,17 @@ fun ProjectsScreen(
     )
   }
 
-  // New File Dialog
   if (showNewFileDialog) {
     NewFileModal(
       onDismiss = { showNewFileDialog = false },
       onCreate = { name ->
         viewModel.createNewFile(name)
         showNewFileDialog = false
+        viewingFileEditor = true
       }
     )
   }
 
-  // New Folder Dialog
   if (showNewFolderDialog) {
     NewFolderModal(
       onDismiss = { showNewFolderDialog = false },
@@ -371,14 +470,29 @@ fun ProjectsScreen(
       }
     )
   }
+
+  if (renamingFile != null) {
+    RenameFileModal(
+      currentName = renamingFile!!.name,
+      onDismiss = { renamingFile = null },
+      onRename = { newName ->
+        viewModel.renameFile(renamingFile!!, newName)
+        renamingFile = null
+      }
+    )
+  }
 }
 
 @Composable
 fun FileItemRow(
   projectFile: ProjectFile,
   onOpen: () -> Unit,
+  onDownload: () -> Unit,
+  onRename: () -> Unit,
   onDelete: () -> Unit
 ) {
+  var showMenu by remember { mutableStateOf(false) }
+
   AltronGlassCard(
     modifier = Modifier.fillMaxWidth(),
     onClick = onOpen
@@ -386,7 +500,7 @@ fun FileItemRow(
     Row(
       modifier = Modifier
         .fillMaxWidth()
-        .padding(horizontal = 14.dp, vertical = 10.dp),
+        .padding(horizontal = 14.dp, vertical = 12.dp),
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -394,57 +508,138 @@ fun FileItemRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.weight(1f)
       ) {
-        val (icon, tint) = getFileIcon(projectFile)
+        val icon = when {
+          projectFile.isDirectory -> Icons.Default.Folder
+          projectFile.name.endsWith(".kt") || projectFile.name.endsWith(".java") -> Icons.Default.Description
+          projectFile.name.endsWith(".html") || projectFile.name.endsWith(".htm") -> Icons.Default.Description
+          projectFile.name.endsWith(".js") || projectFile.name.endsWith(".ts") || projectFile.name.endsWith(".tsx") -> Icons.Default.Description
+          projectFile.name.endsWith(".py") -> Icons.Default.Description
+          else -> Icons.Default.Description
+        }
+
+        val iconTint = when {
+          projectFile.isDirectory -> AltronAmber
+          projectFile.name.endsWith(".html") -> BrandPrimaryOrange
+          projectFile.name.endsWith(".kt") -> TerminalCyan
+          projectFile.name.endsWith(".py") -> TerminalGreen
+          else -> BrandPrimaryOrange
+        }
+
         Icon(
           imageVector = icon,
           contentDescription = null,
-          tint = tint,
+          tint = iconTint,
           modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(10.dp))
         Column {
           Text(
             text = projectFile.name,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (projectFile.isDirectory) FontWeight.Bold else FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface
-          )
-          if (!projectFile.isDirectory) {
-            Text(
-              text = "${projectFile.sizeBytes} bytes",
-              fontSize = 10.sp,
-              fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-              color = MaterialTheme.colorScheme.onSurfaceVariant
+            style = MaterialTheme.typography.bodyMedium.copy(
+              fontWeight = FontWeight.Bold,
+              color = BrandTextBlack
             )
-          }
+          )
+          Text(
+            text = if (projectFile.isDirectory) "Directory" else "${projectFile.file.length()} bytes",
+            fontSize = 11.sp,
+            color = BrandTextSecondary
+          )
         }
       }
 
-      IconButton(
-        onClick = onDelete,
-        modifier = Modifier.size(36.dp)
-      ) {
-        Icon(
-          imageVector = Icons.Default.Delete,
-          contentDescription = "Delete",
-          tint = TerminalRed.copy(alpha = 0.7f),
-          modifier = Modifier.size(16.dp)
-        )
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        if (!projectFile.isDirectory) {
+          IconButton(onClick = onDownload, modifier = Modifier.size(32.dp)) {
+            Icon(
+              imageVector = Icons.Default.CloudDownload,
+              contentDescription = "Download File",
+              tint = BrandPrimaryOrange,
+              modifier = Modifier.size(18.dp)
+            )
+          }
+        }
+
+        Box {
+          IconButton(
+            onClick = { showMenu = true },
+            modifier = Modifier.size(32.dp)
+          ) {
+            Icon(
+              imageVector = Icons.Default.Edit,
+              contentDescription = "More",
+              tint = BrandTextBlack,
+              modifier = Modifier.size(16.dp)
+            )
+          }
+
+          DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false },
+            modifier = Modifier.background(PureWhiteBackground)
+          ) {
+            DropdownMenuItem(
+              text = { Text("Rename", color = BrandTextBlack, fontWeight = FontWeight.Bold) },
+              onClick = {
+                showMenu = false
+                onRename()
+              }
+            )
+            DropdownMenuItem(
+              text = { Text("Delete", color = TerminalRed, fontWeight = FontWeight.Bold) },
+              onClick = {
+                showMenu = false
+                onDelete()
+              }
+            )
+          }
+        }
       }
     }
   }
 }
 
-fun getFileIcon(file: ProjectFile): Pair<androidx.compose.ui.graphics.vector.ImageVector, Color> {
-  return if (file.isDirectory) {
-    Icons.Default.Folder to AltronAmber
-  } else {
-    when (file.extension.lowercase()) {
-      "kt", "java" -> Icons.Default.Code to AltronOrange
-      "html", "htm" -> Icons.Default.Description to TerminalCyan
-      "js", "ts", "json" -> Icons.Default.Code to AltronAmber
-      "py" -> Icons.Default.Code to TerminalGreen
-      else -> Icons.Default.Description to Color(0xFF94A3B8)
+@Composable
+fun RenameFileModal(
+  currentName: String,
+  onDismiss: () -> Unit,
+  onRename: (newName: String) -> Unit
+) {
+  var newName by remember { mutableStateOf(currentName) }
+
+  Dialog(onDismissRequest = onDismiss) {
+    AltronGlassCard(modifier = Modifier.fillMaxWidth(), hasGlowBorder = true) {
+      Column(modifier = Modifier.padding(20.dp)) {
+        Text(
+          text = "Rename Item",
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.Bold,
+          color = BrandTextBlack
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        OutlinedTextField(
+          value = newName,
+          onValueChange = { newName = it },
+          label = { Text("New Name") },
+          singleLine = true,
+          modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.End
+        ) {
+          TextButton(onClick = onDismiss) {
+            Text("Cancel", color = BrandTextSecondary)
+          }
+          Spacer(modifier = Modifier.width(8.dp))
+          AltronPrimaryButton(
+            text = "Rename",
+            onClick = { if (newName.isNotBlank()) onRename(newName) },
+            enabled = newName.isNotBlank() && newName != currentName
+          )
+        }
+      }
     }
   }
 }
@@ -456,60 +651,36 @@ fun NewProjectModal(
 ) {
   var name by remember { mutableStateOf("") }
   var description by remember { mutableStateOf("") }
-  var selectedType by remember { mutableStateOf(ProjectType.ANDROID) }
+  var selectedType by remember { mutableStateOf(ProjectType.CUSTOM) }
 
   Dialog(onDismissRequest = onDismiss) {
-    AltronGlassCard(
-      modifier = Modifier.fillMaxWidth(),
-      hasGlowBorder = true
-    ) {
+    AltronGlassCard(modifier = Modifier.fillMaxWidth(), hasGlowBorder = true) {
       Column(modifier = Modifier.padding(20.dp)) {
         Text(
           text = "Create New Project",
           style = MaterialTheme.typography.titleMedium,
           fontWeight = FontWeight.Bold,
-          color = MaterialTheme.colorScheme.onSurface
+          color = BrandTextBlack
         )
-
         Spacer(modifier = Modifier.height(14.dp))
-
         OutlinedTextField(
           value = name,
           onValueChange = { name = it },
           label = { Text("Project Name") },
           singleLine = true,
-          modifier = Modifier.fillMaxWidth(),
-          colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = AltronOrange,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline
-          )
+          modifier = Modifier.fillMaxWidth()
         )
-
         Spacer(modifier = Modifier.height(10.dp))
-
         OutlinedTextField(
           value = description,
           onValueChange = { description = it },
           label = { Text("Description") },
-          modifier = Modifier.fillMaxWidth(),
-          colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = AltronOrange,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline
-          )
+          modifier = Modifier.fillMaxWidth()
         )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Text(
-          text = "Project Template:",
-          style = MaterialTheme.typography.labelSmall,
-          fontWeight = FontWeight.Bold,
-          color = AltronOrange
-        )
-
+        Spacer(modifier = Modifier.height(14.dp))
+        Text("Template", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = BrandTextBlack)
         Spacer(modifier = Modifier.height(6.dp))
-
-        ProjectType.values().forEach { type ->
+        ProjectType.entries.forEach { type ->
           Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -520,33 +691,27 @@ fun NewProjectModal(
             RadioButton(
               selected = selectedType == type,
               onClick = { selectedType = type },
-              colors = RadioButtonDefaults.colors(selectedColor = AltronOrange)
+              colors = RadioButtonDefaults.colors(selectedColor = BrandPrimaryOrange)
             )
-            Text(
-              text = type.displayName,
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurface
-            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
+              Text(type.displayName, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = BrandTextBlack)
+              Text(type.badge, fontSize = 11.sp, color = BrandTextSecondary)
+            }
           }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
+        Spacer(modifier = Modifier.height(18.dp))
         Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.End
         ) {
           TextButton(onClick = onDismiss) {
-            Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Cancel", color = BrandTextSecondary)
           }
           Spacer(modifier = Modifier.width(8.dp))
           AltronPrimaryButton(
-            text = "Create",
-            onClick = {
-              if (name.isNotBlank()) {
-                onCreate(name, selectedType, description)
-              }
-            },
+            text = "Create Project",
+            onClick = { if (name.isNotBlank()) onCreate(name, selectedType, description) },
             enabled = name.isNotBlank()
           )
         }
@@ -569,13 +734,13 @@ fun NewFileModal(
           text = "Create New File",
           style = MaterialTheme.typography.titleMedium,
           fontWeight = FontWeight.Bold,
-          color = MaterialTheme.colorScheme.onSurface
+          color = BrandTextBlack
         )
         Spacer(modifier = Modifier.height(12.dp))
         OutlinedTextField(
           value = fileName,
           onValueChange = { fileName = it },
-          label = { Text("File Name (e.g. Script.kt, index.html)") },
+          label = { Text("File Name (e.g. index.html, main.py)") },
           singleLine = true,
           modifier = Modifier.fillMaxWidth()
         )
@@ -585,7 +750,7 @@ fun NewFileModal(
           horizontalArrangement = Arrangement.End
         ) {
           TextButton(onClick = onDismiss) {
-            Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Cancel", color = BrandTextSecondary)
           }
           Spacer(modifier = Modifier.width(8.dp))
           AltronPrimaryButton(
@@ -613,13 +778,13 @@ fun NewFolderModal(
           text = "Create New Folder",
           style = MaterialTheme.typography.titleMedium,
           fontWeight = FontWeight.Bold,
-          color = MaterialTheme.colorScheme.onSurface
+          color = BrandTextBlack
         )
         Spacer(modifier = Modifier.height(12.dp))
         OutlinedTextField(
           value = folderName,
           onValueChange = { folderName = it },
-          label = { Text("Folder Name (e.g. src, components)") },
+          label = { Text("Folder Name (e.g. src, assets)") },
           singleLine = true,
           modifier = Modifier.fillMaxWidth()
         )
@@ -629,7 +794,7 @@ fun NewFolderModal(
           horizontalArrangement = Arrangement.End
         ) {
           TextButton(onClick = onDismiss) {
-            Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Cancel", color = BrandTextSecondary)
           }
           Spacer(modifier = Modifier.width(8.dp))
           AltronPrimaryButton(

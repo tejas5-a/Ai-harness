@@ -306,6 +306,49 @@ class ProjectRepository(private val context: Context) {
     return if (file.isDirectory) file.deleteRecursively() else file.delete()
   }
 
+  fun renameFile(project: Project, file: File, newName: String): File {
+    if (!isSafeWithinProject(project, file)) {
+      throw SecurityException("Cannot rename file outside project boundary")
+    }
+    val target = File(file.parentFile, newName)
+    if (!isSafeWithinProject(project, target)) {
+      throw SecurityException("Cannot move file outside project boundary")
+    }
+    file.renameTo(target)
+    return target
+  }
+
+  fun zipProject(project: Project): File {
+    val zipName = "${project.name.replace(" ", "-")}.zip"
+    val outputZip = File(context.cacheDir, zipName)
+    if (outputZip.exists()) outputZip.delete()
+
+    java.util.zip.ZipOutputStream(java.io.FileOutputStream(outputZip)).use { zipOut ->
+      fun addDirToZip(folder: File, basePath: String) {
+        val files = folder.listFiles() ?: return
+        for (f in files) {
+          if (f.name == ".altron_meta") continue
+          val entryPath = if (basePath.isEmpty()) f.name else "$basePath/${f.name}"
+          if (f.isDirectory) {
+            val zipEntry = java.util.zip.ZipEntry("$entryPath/")
+            zipOut.putNextEntry(zipEntry)
+            zipOut.closeEntry()
+            addDirToZip(f, entryPath)
+          } else {
+            val zipEntry = java.util.zip.ZipEntry(entryPath)
+            zipOut.putNextEntry(zipEntry)
+            f.inputStream().use { input ->
+              input.copyTo(zipOut)
+            }
+            zipOut.closeEntry()
+          }
+        }
+      }
+      addDirToZip(project.rootDir, "")
+    }
+    return outputZip
+  }
+
   // Security checks: Enforce project directory boundaries
   fun isSafeWithinProject(project: Project, file: File): Boolean {
     val canonicalRoot = project.rootDir.canonicalFile

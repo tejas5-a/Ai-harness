@@ -377,6 +377,73 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
     }
   }
 
+  fun renameFile(file: File, newName: String) {
+    val proj = _activeProject.value ?: return
+    try {
+      val target = projectRepo.renameFile(proj, file, newName)
+      refreshFiles()
+      openFile(target)
+      _statusMessage.value = "Renamed to '$newName'"
+    } catch (e: Exception) {
+      _statusMessage.value = "Failed to rename: ${e.localizedMessage}"
+    }
+  }
+
+  fun downloadIndividualFile(context: android.content.Context, file: File) {
+    try {
+      val authority = "${context.packageName}.fileprovider"
+      val uri = androidx.core.content.FileProvider.getUriForFile(context, authority, file)
+      val mimeType = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension) ?: "text/plain"
+
+      val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = mimeType
+        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+        putExtra(android.content.Intent.EXTRA_SUBJECT, file.name)
+        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+      }
+      val chooser = android.content.Intent.createChooser(intent, "Download / Share ${file.name}").apply {
+        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+      }
+      context.startActivity(chooser)
+      _statusMessage.value = "Sharing file: ${file.name}"
+    } catch (e: Exception) {
+      _statusMessage.value = "Download failed: ${e.localizedMessage}"
+    }
+  }
+
+  fun downloadProjectZip(context: android.content.Context): File? {
+    val proj = _activeProject.value ?: run {
+      _statusMessage.value = "No active project selected to download."
+      return null
+    }
+
+    return try {
+      val zipFile = projectRepo.zipProject(proj)
+      val authority = "${context.packageName}.fileprovider"
+      val uri = androidx.core.content.FileProvider.getUriForFile(context, authority, zipFile)
+
+      val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = "application/zip"
+        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+        putExtra(android.content.Intent.EXTRA_SUBJECT, "${proj.name}.zip")
+        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+      }
+      val chooser = android.content.Intent.createChooser(intent, "Download Project ZIP: ${proj.name}.zip").apply {
+        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+      }
+      context.startActivity(chooser)
+      _statusMessage.value = "Generating ZIP archive: ${proj.name}.zip"
+      zipFile
+    } catch (e: Exception) {
+      _statusMessage.value = "Failed to create project ZIP: ${e.localizedMessage}"
+      null
+    }
+  }
+
+  fun exportProject(context: android.content.Context) {
+    downloadProjectZip(context)
+  }
+
   // ==================== API PROVIDERS ====================
 
   fun loadProviders() {
