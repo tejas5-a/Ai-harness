@@ -12,7 +12,9 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -84,13 +86,15 @@ class MainActivity : ComponentActivity() {
               }
 
               Scaffold(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxHeight().weight(1f),
                 containerColor = Color.Transparent, // Allows ambient Aurora gradients through
+                contentWindowInsets = WindowInsets(0, 0, 0, 0), // Prevents double-inset application on child screens
                 snackbarHost = { SnackbarHost(snackbarHostState) },
                 topBar = {
                   AltronTopBar(
                     activeProject = activeProject,
                     activeTasksCount = activeTasksCount,
+                    onApiClicked = { viewModel.setScreen(Screen.SETTINGS) },
                     onTasksClicked = { viewModel.setScreen(Screen.TASKS) },
                     onMenuClicked = { viewModel.setScreen(Screen.SETTINGS) },
                     onTerminalClicked = { viewModel.setScreen(Screen.TERMINAL) },
@@ -98,7 +102,8 @@ class MainActivity : ComponentActivity() {
                   )
                 },
                 bottomBar = {
-                  if (!isWide) {
+                  val isImeVisible = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+                  if (!isWide && !isImeVisible) {
                     AltronBottomNavBar(
                       currentScreen = currentScreen,
                       onScreenSelected = { screen -> viewModel.setScreen(screen) }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
@@ -51,13 +52,16 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import com.example.ui.navigation.Screen
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -318,14 +322,16 @@ fun AiAgentScreen(
   // 2. Only follow streaming updates when user is near bottom and not actively dragging
   LaunchedEffect(messages.lastOrNull()?.content?.length) {
     if (isNearBottom && !listState.isScrollInProgress && messages.isNotEmpty()) {
-      listState.scrollToItem(messages.size - 1)
+      // scrollOffset = 100000 ensures we stay anchored at the bottom of long responses
+      // instead of resetting to the top (which caused sudden jumps to the beginning!)
+      listState.scrollToItem(messages.size - 1, scrollOffset = 100000)
     }
   }
 
-  // 3. When a new message is posted (user submits prompt or response starts), smoothly scroll to bottom
+  // 3. When a new message is posted by the user, smoothly scroll to bottom
   LaunchedEffect(messages.size) {
-    if (messages.isNotEmpty()) {
-      listState.animateScrollToItem(messages.size - 1)
+    if (messages.isNotEmpty() && (isNearBottom || messages.lastOrNull()?.sender == MessageSender.USER)) {
+      listState.animateScrollToItem(messages.size - 1, scrollOffset = 100000)
     }
   }
 
@@ -400,6 +406,32 @@ fun AiAgentScreen(
               }
             )
           }
+
+          HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+          DropdownMenuItem(
+            text = {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                  imageVector = Icons.Default.VpnKey,
+                  contentDescription = null,
+                  tint = BrandPrimaryOrange,
+                  modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                  text = "Configure API Providers & Keys",
+                  fontWeight = FontWeight.Bold,
+                  fontSize = 12.sp,
+                  color = BrandPrimaryOrange
+                )
+              }
+            },
+            onClick = {
+              showModelMenu = false
+              viewModel.setScreen(Screen.SETTINGS)
+            }
+          )
         }
       }
 
@@ -542,6 +574,7 @@ fun AiAgentScreen(
       LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(top = 4.dp, bottom = 64.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
       ) {
         // If conversation has no user messages yet, show hero suggestions inside the LazyColumn
@@ -576,24 +609,25 @@ fun AiAgentScreen(
         }
       }
 
-      // "Jump to latest" floating button when user has scrolled upward
-      if (!isNearBottom && messages.size > 2) {
+      // "Jump to latest" floating pill button cleanly positioned above the composer
+      // Using contentPadding on LazyColumn ensures messages are never occluded!
+      if (!isNearBottom && messages.size > 1) {
         Surface(
           onClick = {
             coroutineScope.launch {
-              listState.animateScrollToItem(messages.size - 1)
+              listState.animateScrollToItem(messages.size - 1, scrollOffset = 100000)
             }
           },
-          shape = RoundedCornerShape(20.dp),
+          shape = RoundedCornerShape(24.dp),
           color = BrandPrimaryOrange,
           shadowElevation = 6.dp,
           modifier = Modifier
-            .align(Alignment.BottomEnd)
-            .padding(bottom = 12.dp, end = 8.dp)
+            .align(Alignment.BottomCenter)
+            .padding(bottom = 10.dp)
             .testTag("jump_to_latest_btn")
         ) {
           Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
           ) {
             Icon(
@@ -639,7 +673,7 @@ fun AiAgentScreen(
       modifier = Modifier
         .fillMaxWidth()
         .padding(bottom = 6.dp),
-      verticalAlignment = Alignment.CenterVertically,
+      verticalAlignment = Alignment.Bottom,
       horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
       // Attachment Button (Plus / Paperclip)
@@ -671,7 +705,7 @@ fun AiAgentScreen(
           .weight(1f)
           .testTag("ai_agent_input_field"),
         shape = RoundedCornerShape(24.dp),
-        maxLines = 4,
+        maxLines = 5,
         colors = OutlinedTextFieldDefaults.colors(
           focusedContainerColor = PureWhiteBackground,
           unfocusedContainerColor = PureWhiteBackground,

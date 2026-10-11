@@ -9,13 +9,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -38,12 +40,14 @@ import com.example.ui.theme.GlassBorder
 import com.example.ui.theme.GlassSurface
 
 /**
- * AltronTopBar: Translucent glass styling with soft ambient shadow and active task indicator.
+ * AltronTopBar: Translucent glass styling with soft ambient shadow, safe-area status bar insets,
+ * active task indicator, and direct access to API Panel & tools.
  */
 @Composable
 fun AltronTopBar(
   activeProject: Project?,
-  onMenuClicked: () -> Unit,
+  onApiClicked: () -> Unit,
+  onMenuClicked: (() -> Unit)? = null,
   activeTasksCount: Int = 0,
   onTasksClicked: (() -> Unit)? = null,
   onTerminalClicked: (() -> Unit)? = null,
@@ -53,6 +57,7 @@ fun AltronTopBar(
   Surface(
     modifier = modifier
       .fillMaxWidth()
+      .statusBarsPadding()
       .shadow(elevation = 2.dp, spotColor = Color(0x10000000))
       .border(0.5.dp, GlassBorder),
     color = GlassSurface,
@@ -61,7 +66,7 @@ fun AltronTopBar(
     Row(
       modifier = Modifier
         .fillMaxWidth()
-        .padding(horizontal = 16.dp, vertical = 10.dp),
+        .padding(horizontal = 16.dp, vertical = 8.dp),
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -80,7 +85,8 @@ fun AltronTopBar(
             style = MaterialTheme.typography.bodyMedium.copy(
               color = BrandTextSecondary,
               fontSize = 13.sp
-            )
+            ),
+            maxLines = 1
           )
         }
       }
@@ -88,18 +94,22 @@ fun AltronTopBar(
       Row(verticalAlignment = Alignment.CenterVertically) {
         if (onTasksClicked != null) {
           Box {
-            IconButton(onClick = onTasksClicked) {
+            IconButton(
+              onClick = onTasksClicked,
+              modifier = Modifier.size(36.dp).testTag("topbar_tasks_btn")
+            ) {
               Icon(
                 imageVector = Icons.Default.Autorenew,
                 contentDescription = "Background Tasks",
-                tint = if (activeTasksCount > 0) BrandPrimaryOrange else BrandTextBlack
+                tint = if (activeTasksCount > 0) BrandPrimaryOrange else BrandTextBlack,
+                modifier = Modifier.size(20.dp)
               )
             }
             if (activeTasksCount > 0) {
               Box(
                 modifier = Modifier
                   .align(Alignment.TopEnd)
-                  .padding(top = 4.dp, end = 4.dp)
+                  .padding(top = 2.dp, end = 2.dp)
                   .size(16.dp)
                   .clip(CircleShape)
                   .background(BrandPrimaryOrange),
@@ -116,28 +126,41 @@ fun AltronTopBar(
           }
         }
         if (onPreviewClicked != null) {
-          IconButton(onClick = onPreviewClicked) {
+          IconButton(
+            onClick = onPreviewClicked,
+            modifier = Modifier.size(36.dp).testTag("topbar_preview_btn")
+          ) {
             Icon(
               imageVector = Icons.Default.PlayArrow,
               contentDescription = "Live Preview",
-              tint = BrandPrimaryOrange
+              tint = BrandPrimaryOrange,
+              modifier = Modifier.size(20.dp)
             )
           }
         }
         if (onTerminalClicked != null) {
-          IconButton(onClick = onTerminalClicked) {
+          IconButton(
+            onClick = onTerminalClicked,
+            modifier = Modifier.size(36.dp).testTag("topbar_terminal_btn")
+          ) {
             Icon(
               imageVector = Icons.Default.Terminal,
               contentDescription = "Terminal",
-              tint = BrandTextBlack
+              tint = BrandTextBlack,
+              modifier = Modifier.size(20.dp)
             )
           }
         }
-        IconButton(onClick = onMenuClicked) {
+        // Dedicated API Panel button
+        IconButton(
+          onClick = onApiClicked,
+          modifier = Modifier.size(36.dp).testTag("topbar_api_btn")
+        ) {
           Icon(
-            imageVector = Icons.Default.Settings,
-            contentDescription = "Settings",
-            tint = BrandTextBlack
+            imageVector = Icons.Default.VpnKey,
+            contentDescription = "API Providers & Models",
+            tint = BrandPrimaryOrange,
+            modifier = Modifier.size(20.dp)
           )
         }
       }

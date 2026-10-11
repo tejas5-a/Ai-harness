@@ -2,6 +2,7 @@ package com.example.ui.navigation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,10 +24,9 @@ import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,7 +37,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.BrandPrimaryOrange
@@ -55,14 +57,14 @@ enum class Screen(
   CHAT("chat", "Chat", Icons.Default.Psychology, "nav_chat"),
   PROJECTS("projects", "Projects", Icons.Default.Folder, "nav_projects"),
   TERMINAL("terminal", "Terminal", Icons.Default.Terminal, "nav_terminal"),
-  SETTINGS("settings", "Settings", Icons.Default.Settings, "nav_settings"),
+  SETTINGS("settings", "API Panel", Icons.Default.VpnKey, "nav_api_panel"),
   PREVIEW("preview", "Live Preview", Icons.Default.PlayArrow, "nav_preview"),
   TASKS("tasks", "Tasks", Icons.Default.Autorenew, "nav_tasks")
 }
 
 /**
  * AltronBottomNavBar: White glass-style surface with subtle shadow and orange active indicator.
- * Preserves exact existing item order and positions:
+ * Preserves exact existing item order, equal item widths, and perfectly centered non-clipped labels:
  * 1. Chat — left
  * 2. Projects — center
  * 3. Terminal — right
@@ -91,11 +93,11 @@ fun AltronBottomNavBar(
           color = GlassBorder,
           shape = RoundedCornerShape(0.dp)
         )
-        .padding(vertical = 8.dp, horizontal = 16.dp)
+        .padding(vertical = 6.dp, horizontal = 10.dp)
     ) {
       Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
         mainScreens.forEach { screen ->
@@ -105,35 +107,40 @@ fun AltronBottomNavBar(
 
           Box(
             modifier = Modifier
-              .defaultMinSize(minHeight = 48.dp, minWidth = 92.dp)
+              .weight(1f)
+              .padding(horizontal = 4.dp)
+              .defaultMinSize(minHeight = 48.dp)
               .clip(RoundedCornerShape(12.dp))
               .background(itemBg)
+              .clickable(
+                onClick = { onScreenSelected(screen) },
+                role = Role.Tab
+              )
+              .padding(vertical = 6.dp, horizontal = 2.dp)
               .testTag(screen.testTag),
             contentAlignment = Alignment.Center
           ) {
-            IconButton(
-              onClick = { onScreenSelected(screen) },
-              modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+            Column(
+              horizontalAlignment = Alignment.CenterHorizontally,
+              verticalArrangement = Arrangement.Center
             ) {
-              Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-              ) {
-                Icon(
-                  imageVector = screen.icon,
-                  contentDescription = screen.label,
-                  tint = contentColor,
-                  modifier = Modifier.size(22.dp)
-                )
-                Spacer(modifier = Modifier.height(3.dp))
-                Text(
-                  text = screen.label,
-                  fontSize = 11.sp,
-                  fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                  color = contentColor,
-                  maxLines = 1
-                )
-              }
+              Icon(
+                imageVector = screen.icon,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(22.dp)
+              )
+              Spacer(modifier = Modifier.height(3.dp))
+              Text(
+                text = screen.label,
+                fontSize = 11.5.sp,
+                lineHeight = 13.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = contentColor,
+                maxLines = 1,
+                softWrap = false,
+                textAlign = TextAlign.Center
+              )
             }
           }
         }
@@ -196,32 +203,35 @@ fun AltronNavigationRail(
               .defaultMinSize(minHeight = 48.dp, minWidth = 64.dp)
               .clip(RoundedCornerShape(12.dp))
               .background(itemBg)
+              .clickable(
+                onClick = { onScreenSelected(screen) },
+                role = Role.Tab
+              )
+              .padding(horizontal = 6.dp, vertical = 6.dp)
               .testTag("rail_${screen.testTag}"),
             contentAlignment = Alignment.Center
           ) {
-            IconButton(
-              onClick = { onScreenSelected(screen) },
-              modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+            Column(
+              horizontalAlignment = Alignment.CenterHorizontally,
+              verticalArrangement = Arrangement.Center
             ) {
-              Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-              ) {
-                Icon(
-                  imageVector = screen.icon,
-                  contentDescription = screen.label,
-                  tint = contentColor,
-                  modifier = Modifier.size(22.dp)
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                  text = screen.label,
-                  fontSize = 10.sp,
-                  fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                  color = contentColor,
-                  maxLines = 1
-                )
-              }
+              Icon(
+                imageVector = screen.icon,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(22.dp)
+              )
+              Spacer(modifier = Modifier.height(3.dp))
+              Text(
+                text = screen.label,
+                fontSize = 10.sp,
+                lineHeight = 12.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = contentColor,
+                maxLines = 1,
+                softWrap = false,
+                textAlign = TextAlign.Center
+              )
             }
           }
         }
@@ -241,32 +251,35 @@ fun AltronNavigationRail(
               .defaultMinSize(minHeight = 44.dp, minWidth = 60.dp)
               .clip(RoundedCornerShape(10.dp))
               .background(itemBg)
+              .clickable(
+                onClick = { onScreenSelected(screen) },
+                role = Role.Tab
+              )
+              .padding(horizontal = 6.dp, vertical = 5.dp)
               .testTag("rail_${screen.testTag}"),
             contentAlignment = Alignment.Center
           ) {
-            IconButton(
-              onClick = { onScreenSelected(screen) },
-              modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+            Column(
+              horizontalAlignment = Alignment.CenterHorizontally,
+              verticalArrangement = Arrangement.Center
             ) {
-              Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-              ) {
-                Icon(
-                  imageVector = screen.icon,
-                  contentDescription = screen.label,
-                  tint = contentColor,
-                  modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                  text = screen.label,
-                  fontSize = 9.sp,
-                  fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                  color = contentColor,
-                  maxLines = 1
-                )
-              }
+              Icon(
+                imageVector = screen.icon,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(20.dp)
+              )
+              Spacer(modifier = Modifier.height(2.dp))
+              Text(
+                text = screen.label,
+                fontSize = 9.sp,
+                lineHeight = 11.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = contentColor,
+                maxLines = 1,
+                softWrap = false,
+                textAlign = TextAlign.Center
+              )
             }
           }
         }
