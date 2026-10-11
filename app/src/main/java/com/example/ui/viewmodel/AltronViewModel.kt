@@ -77,6 +77,14 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
   val activeProvider: StateFlow<ApiProviderConfig> = _activeProvider.asStateFlow()
 
   // AI Agent Chat
+  private val _conversations = MutableStateFlow<List<com.example.data.model.Conversation>>(emptyList())
+  val conversations: StateFlow<List<com.example.data.model.Conversation>> = _conversations.asStateFlow()
+
+  private val _currentConversationId = MutableStateFlow<String>(java.util.UUID.randomUUID().toString())
+  val currentConversationId: StateFlow<String> = _currentConversationId.asStateFlow()
+
+  private val conversationHistoryMap = mutableMapOf<String, List<ChatMessage>>()
+
   private val _chatMessages = MutableStateFlow<List<ChatMessage>>(
     listOf(
       ChatMessage(
@@ -86,6 +94,75 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
     )
   )
   val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
+
+  fun startNewChat() {
+    val currentMsgs = _chatMessages.value
+    val currentId = _currentConversationId.value
+    val userMsgs = currentMsgs.filter { it.sender == MessageSender.USER }
+    if (userMsgs.isNotEmpty()) {
+      conversationHistoryMap[currentId] = currentMsgs
+      val title = userMsgs.first().content.take(30).trim()
+      val list = _conversations.value.toMutableList()
+      val existingIdx = list.indexOfFirst { it.id == currentId }
+      val conv = com.example.data.model.Conversation(
+        id = currentId,
+        title = if (title.isBlank()) "Coding Chat" else title,
+        lastModified = System.currentTimeMillis(),
+        projectId = _activeProject.value?.id ?: "default"
+      )
+      if (existingIdx != -1) {
+        list[existingIdx] = conv
+      } else {
+        list.add(0, conv)
+      }
+      _conversations.value = list
+    }
+
+    val newId = java.util.UUID.randomUUID().toString()
+    _currentConversationId.value = newId
+    _chatMessages.value = listOf(
+      ChatMessage(
+        sender = MessageSender.AGENT,
+        content = "⚡ Hello! I am ALTRON CODE AI, your on-device coding assistant.\n\nI can inspect your project files, generate code, suggest architecture, explain errors, and prepare shell commands. What are you building today?"
+      )
+    )
+    _statusMessage.value = "Started new conversation."
+  }
+
+  fun switchConversation(id: String) {
+    if (id == _currentConversationId.value) return
+    conversationHistoryMap[_currentConversationId.value] = _chatMessages.value
+    val targetMsgs = conversationHistoryMap[id] ?: emptyList()
+    if (targetMsgs.isNotEmpty()) {
+      _chatMessages.value = targetMsgs
+    }
+    _currentConversationId.value = id
+    _statusMessage.value = "Switched conversation."
+  }
+
+  fun deleteConversation(id: String) {
+    conversationHistoryMap.remove(id)
+    _conversations.value = _conversations.value.filter { it.id != id }
+    if (_currentConversationId.value == id) {
+      startNewChat()
+    }
+  }
+
+  fun saveCodeBlockToFile(suggestedFileName: String, codeContent: String): String {
+    val proj = _activeProject.value
+    val targetFileName = suggestedFileName.ifBlank { "generated_code.txt" }
+    return if (proj != null) {
+      val file = File(proj.rootDir, targetFileName)
+      projectRepo.saveFile(proj, file, codeContent)
+      refreshFiles()
+      openFile(file)
+      "Saved to project: '$targetFileName'"
+    } else {
+      val targetFile = File(getApplication<Application>().filesDir, targetFileName)
+      targetFile.writeText(codeContent)
+      "Saved to local files: '${targetFile.name}'"
+    }
+  }
 
   private val _agentMode = MutableStateFlow(AgentMode.ASK)
   val agentMode: StateFlow<AgentMode> = _agentMode.asStateFlow()

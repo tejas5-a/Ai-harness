@@ -320,3 +320,36 @@ fun ApprovalDialog(
     }
   }
 }
+
+/**
+ * Triggers physical tactile/haptic feedback using both Jetpack Compose HapticFeedback
+ * and the Android system Vibrator with safety fallbacks across all API levels.
+ */
+fun triggerTactileFeedback(
+  context: android.content.Context,
+  haptic: androidx.compose.ui.hapticfeedback.HapticFeedback? = null
+) {
+  try {
+    haptic?.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+  } catch (_: Exception) {}
+
+  try {
+    val vibrator = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+      val vibratorManager = context.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE) as? android.os.VibratorManager
+      vibratorManager?.defaultVibrator
+    } else {
+      @Suppress("DEPRECATION")
+      context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+    }
+
+    if (vibrator != null && vibrator.hasVibrator()) {
+      if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        vibrator.vibrate(android.os.VibrationEffect.createOneShot(35, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+      } else {
+        @Suppress("DEPRECATION")
+        vibrator.vibrate(35)
+      }
+    }
+  } catch (_: Exception) {}
+}
+

@@ -41,4 +41,11 @@ class ExampleRobolectricTest {
     assertFalse(terminal.isPotentiallyDangerous("pwd"))
     assertFalse(terminal.isPotentiallyDangerous("cat README.md"))
   }
+
+  @Test
+  fun `tactile feedback helper executes safely`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    // Ensure invoking triggerTactileFeedback with null haptic does not crash
+    com.example.ui.components.triggerTactileFeedback(context, null)
+  }
 }
