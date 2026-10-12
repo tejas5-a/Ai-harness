@@ -57,7 +57,6 @@ fun AltronTopBar(
   Surface(
     modifier = modifier
       .fillMaxWidth()
-      .statusBarsPadding()
       .shadow(elevation = 2.dp, spotColor = Color(0x10000000))
       .border(0.5.dp, GlassBorder),
     color = GlassSurface,
@@ -66,6 +65,7 @@ fun AltronTopBar(
     Row(
       modifier = Modifier
         .fillMaxWidth()
+        .statusBarsPadding()
         .padding(horizontal = 16.dp, vertical = 8.dp),
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.SpaceBetween

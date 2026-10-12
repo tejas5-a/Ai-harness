@@ -7,6 +7,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -611,38 +614,48 @@ fun AiAgentScreen(
 
       // "Jump to latest" floating pill button cleanly positioned above the composer
       // Using contentPadding on LazyColumn ensures messages are never occluded!
-      if (!isNearBottom && messages.size > 1) {
-        Surface(
-          onClick = {
-            coroutineScope.launch {
-              listState.animateScrollToItem(messages.size - 1, scrollOffset = 100000)
-            }
-          },
-          shape = RoundedCornerShape(24.dp),
-          color = BrandPrimaryOrange,
-          shadowElevation = 6.dp,
-          modifier = Modifier
-            .align(Alignment.BottomCenter)
-            .padding(bottom = 10.dp)
-            .testTag("jump_to_latest_btn")
+      Column(
+        modifier = Modifier
+          .align(Alignment.BottomCenter)
+          .padding(bottom = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+      ) {
+        AnimatedVisibility(
+          visible = !isNearBottom && messages.size > 1,
+          enter = fadeIn() + slideInVertically { it },
+          exit = fadeOut() + slideOutVertically { it }
         ) {
-          Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+          Surface(
+            onClick = {
+              coroutineScope.launch {
+                val targetIdx = maxOf(0, listState.layoutInfo.totalItemsCount - 1)
+                listState.animateScrollToItem(targetIdx, scrollOffset = 100000)
+              }
+            },
+            shape = RoundedCornerShape(24.dp),
+            color = BrandPrimaryOrange,
+            shadowElevation = 8.dp,
+            border = BorderStroke(1.dp, Color(0x33000000)),
+            modifier = Modifier.testTag("jump_to_latest_btn")
           ) {
-            Icon(
-              imageVector = Icons.Default.ArrowDownward,
-              contentDescription = "Jump to latest",
-              tint = BrandTextBlack,
-              modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-              text = "Jump to latest",
-              fontWeight = FontWeight.Bold,
-              fontSize = 12.sp,
-              color = BrandTextBlack
-            )
+            Row(
+              modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Icon(
+                imageVector = Icons.Default.ArrowDownward,
+                contentDescription = "Jump to latest",
+                tint = BrandTextBlack,
+                modifier = Modifier.size(16.dp)
+              )
+              Spacer(modifier = Modifier.width(6.dp))
+              Text(
+                text = "Jump to latest",
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                color = BrandTextBlack
+              )
+            }
           }
         }
       }

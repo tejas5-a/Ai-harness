@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
@@ -23,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -86,9 +88,11 @@ class MainActivity : ComponentActivity() {
               }
 
               Scaffold(
-    modifier = Modifier.fillMaxHeight().weight(1f),
-    containerColor = Color.Transparent,
-    contentWindowInsets = WindowInsets(0, 0, 0, 0),, // Prevents double-inset application on child screens
+                modifier = Modifier
+                  .fillMaxHeight()
+                  .weight(1f),
+                containerColor = Color.Transparent,
+                contentWindowInsets = WindowInsets(0, 0, 0, 0), // Prevents double-inset application on child screens
                 snackbarHost = { SnackbarHost(snackbarHostState) },
                 topBar = {
                   AltronTopBar(
@@ -114,7 +118,8 @@ class MainActivity : ComponentActivity() {
                 Box(
                   modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
+                    .padding(innerPadding),
+                  contentAlignment = Alignment.TopCenter
                 ) {
                   AnimatedContent(
                     targetState = currentScreen,

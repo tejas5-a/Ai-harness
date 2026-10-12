@@ -64,10 +64,11 @@ enum class Screen(
 
 /**
  * AltronBottomNavBar: White glass-style surface with subtle shadow and orange active indicator.
- * Preserves exact existing item order, equal item widths, and perfectly centered non-clipped labels:
- * 1. Chat — left
- * 2. Projects — center
- * 3. Terminal — right
+ * Displays all 4 primary navigation tabs:
+ * 1. Chat (left)
+ * 2. Projects
+ * 3. Terminal
+ * 4. API Panel (right)
  */
 @Composable
 fun AltronBottomNavBar(
@@ -75,7 +76,7 @@ fun AltronBottomNavBar(
   onScreenSelected: (Screen) -> Unit,
   modifier: Modifier = Modifier
 ) {
-  val mainScreens = listOf(Screen.CHAT, Screen.PROJECTS, Screen.TERMINAL)
+  val mainScreens = listOf(Screen.CHAT, Screen.PROJECTS, Screen.TERMINAL, Screen.SETTINGS)
 
   Surface(
     modifier = modifier
@@ -93,7 +94,7 @@ fun AltronBottomNavBar(
           color = GlassBorder,
           shape = RoundedCornerShape(0.dp)
         )
-        .padding(vertical = 6.dp, horizontal = 10.dp)
+        .padding(vertical = 6.dp, horizontal = 6.dp)
     ) {
       Row(
         modifier = Modifier.fillMaxWidth(),
@@ -108,7 +109,7 @@ fun AltronBottomNavBar(
           Box(
             modifier = Modifier
               .weight(1f)
-              .padding(horizontal = 4.dp)
+              .padding(horizontal = 2.dp)
               .defaultMinSize(minHeight = 48.dp)
               .clip(RoundedCornerShape(12.dp))
               .background(itemBg)
@@ -116,7 +117,7 @@ fun AltronBottomNavBar(
                 onClick = { onScreenSelected(screen) },
                 role = Role.Tab
               )
-              .padding(vertical = 6.dp, horizontal = 2.dp)
+              .padding(vertical = 5.dp, horizontal = 2.dp)
               .testTag(screen.testTag),
             contentAlignment = Alignment.Center
           ) {
@@ -128,13 +129,13 @@ fun AltronBottomNavBar(
                 imageVector = screen.icon,
                 contentDescription = null,
                 tint = contentColor,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(20.dp)
               )
-              Spacer(modifier = Modifier.height(3.dp))
+              Spacer(modifier = Modifier.height(2.dp))
               Text(
                 text = screen.label,
-                fontSize = 11.5.sp,
-                lineHeight = 13.sp,
+                fontSize = 11.sp,
+                lineHeight = 12.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                 color = contentColor,
                 maxLines = 1,
