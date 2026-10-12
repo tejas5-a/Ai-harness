@@ -108,6 +108,7 @@ fun ProjectsScreen(
   val isContentModified by viewModel.isContentModified.collectAsState()
 
   var showNewProjectDialog by remember { mutableStateOf(false) }
+  var showDeleteProjectDialog by remember { mutableStateOf(false) }
   var showNewFileDialog by remember { mutableStateOf(false) }
   var showNewFolderDialog by remember { mutableStateOf(false) }
   var renamingFile by remember { mutableStateOf<File?>(null) }
@@ -141,11 +142,42 @@ fun ProjectsScreen(
         )
       }
 
-      AltronPrimaryButton(
-        text = "New Project",
-        icon = Icons.Default.Add,
-        onClick = { showNewProjectDialog = true }
-      )
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+      ) {
+        if (activeProject != null) {
+          Button(
+            onClick = { showDeleteProjectDialog = true },
+            colors = ButtonDefaults.buttonColors(
+              containerColor = TerminalRed.copy(alpha = 0.12f),
+              contentColor = TerminalRed
+            ),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier
+              .defaultMinSize(minHeight = 40.dp)
+              .testTag("delete_project_files_button")
+          ) {
+            Icon(
+              imageVector = Icons.Default.Delete,
+              contentDescription = "Delete Project and Files",
+              modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+              text = "Delete",
+              fontSize = 12.sp,
+              fontWeight = FontWeight.Bold
+            )
+          }
+        }
+
+        AltronPrimaryButton(
+          text = "New Project",
+          icon = Icons.Default.Add,
+          onClick = { showNewProjectDialog = true }
+        )
+      }
     }
 
     // Horizontal Project Switcher
@@ -475,6 +507,87 @@ fun ProjectsScreen(
       }
     )
   }
+
+  if (showDeleteProjectDialog && activeProject != null) {
+    val projectToDelete = activeProject!!
+    Dialog(onDismissRequest = { showDeleteProjectDialog = false }) {
+      AltronGlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+          modifier = Modifier.padding(20.dp),
+          verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+              modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(TerminalRed.copy(alpha = 0.15f)),
+              contentAlignment = Alignment.Center
+            ) {
+              Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = null,
+                tint = TerminalRed,
+                modifier = Modifier.size(22.dp)
+              )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+              Text(
+                text = "Delete Project & Files?",
+                style = MaterialTheme.typography.titleMedium.copy(
+                  fontWeight = FontWeight.Bold,
+                  color = BrandTextBlack
+                )
+              )
+              Text(
+                text = projectToDelete.name,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = BrandPrimaryOrange
+              )
+            }
+          }
+
+          Text(
+            text = "Are you sure you want to delete this project and all its workspace files (${currentFiles.size} items) from your device?\n\nThis action cannot be undone.",
+            fontSize = 13.sp,
+            color = BrandTextSecondary,
+            lineHeight = 18.sp
+          )
+
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            TextButton(
+              onClick = { showDeleteProjectDialog = false }
+            ) {
+              Text("Cancel", color = BrandTextSecondary)
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+              onClick = {
+                viewModel.deleteProject(projectToDelete)
+                showDeleteProjectDialog = false
+              },
+              colors = ButtonDefaults.buttonColors(
+                containerColor = TerminalRed,
+                contentColor = Color.White
+              ),
+              shape = RoundedCornerShape(8.dp)
+            ) {
+              Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+              Spacer(modifier = Modifier.width(4.dp))
+              Text("Delete Project & Files", fontWeight = FontWeight.Bold)
+            }
+          }
+        }
+      }
+    }
+  }
+
   if (showNewProjectDialog) {
     NewProjectModal(
       onDismiss = { showNewProjectDialog = false },

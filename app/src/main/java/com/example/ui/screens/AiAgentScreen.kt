@@ -20,10 +20,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -90,12 +92,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -208,35 +212,258 @@ fun inferFileName(lang: String): String {
   }
 }
 
-fun parseMarkdownSpans(text: String, baseColor: Color): AnnotatedString {
+fun parseInlineMarkdown(text: String, baseColor: Color = BrandTextBlack): AnnotatedString {
   return buildAnnotatedString {
-    var currentIndex = 0
-    val boldPattern = Pattern.compile("(\\*\\*|__)(.*?)\\1")
-    val matcher = boldPattern.matcher(text)
+    val tokenPattern = Pattern.compile("(`[^`]+`|\\*\\*[^\\*]+\\*\\*|__[^_]+__|\\*[^\\*]+\\*|_[^_]+_)")
+    val matcher = tokenPattern.matcher(text)
+    var lastIndex = 0
 
     while (matcher.find()) {
       val start = matcher.start()
       val end = matcher.end()
-      val boldContent = matcher.group(2)
+      val token = matcher.group()
 
-      if (start > currentIndex) {
-        append(text.substring(currentIndex, start))
+      if (start > lastIndex) {
+        append(text.substring(lastIndex, start))
       }
 
-      pushStyle(
-        SpanStyle(
-          fontWeight = FontWeight.Bold,
-          color = baseColor
-        )
-      )
-      append(boldContent)
-      pop()
-
-      currentIndex = end
+      when {
+        token.startsWith("`") && token.endsWith("`") && token.length >= 2 -> {
+          val codeText = token.substring(1, token.length - 1)
+          pushStyle(
+            SpanStyle(
+              fontFamily = FontFamily.Monospace,
+              fontSize = 13.5.sp,
+              fontWeight = FontWeight.SemiBold,
+              color = BrandTextBlack,
+              background = Color(0x18000000)
+            )
+          )
+          append(" $codeText ")
+          pop()
+        }
+        (token.startsWith("**") && token.endsWith("**") && token.length >= 4) ||
+        (token.startsWith("__") && token.endsWith("__") && token.length >= 4) -> {
+          val boldText = token.substring(2, token.length - 2)
+          pushStyle(
+            SpanStyle(
+              fontWeight = FontWeight.Bold,
+              color = baseColor
+            )
+          )
+          append(boldText)
+          pop()
+        }
+        (token.startsWith("*") && token.endsWith("*") && token.length >= 2) ||
+        (token.startsWith("_") && token.endsWith("_") && token.length >= 2) -> {
+          val italicText = token.substring(1, token.length - 1)
+          pushStyle(
+            SpanStyle(
+              fontStyle = FontStyle.Italic,
+              color = baseColor
+            )
+          )
+          append(italicText)
+          pop()
+        }
+        else -> {
+          append(token)
+        }
+      }
+      lastIndex = end
     }
 
-    if (currentIndex < text.length) {
-      append(text.substring(currentIndex))
+    if (lastIndex < text.length) {
+      append(text.substring(lastIndex))
+    }
+  }
+}
+
+fun parseMarkdownSpans(text: String, baseColor: Color): AnnotatedString {
+  return parseInlineMarkdown(text, baseColor)
+}
+
+@Composable
+fun MarkdownTextBlock(
+  content: String,
+  modifier: Modifier = Modifier
+) {
+  val lines = remember(content) { content.lines() }
+
+  Column(
+    modifier = modifier.fillMaxWidth(),
+    verticalArrangement = Arrangement.spacedBy(4.dp)
+  ) {
+    var i = 0
+    while (i < lines.size) {
+      val rawLine = lines[i]
+      val trimmed = rawLine.trim()
+
+      if (trimmed.isEmpty()) {
+        Spacer(modifier = Modifier.height(4.dp))
+        i++
+        continue
+      }
+
+      when {
+        // Heading 1: #
+        trimmed.startsWith("# ") -> {
+          val text = trimmed.removePrefix("# ").trim()
+          SelectionContainer {
+            Text(
+              text = parseInlineMarkdown(text),
+              style = MaterialTheme.typography.titleLarge.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+                color = BrandTextBlack,
+                lineHeight = 26.sp
+              ),
+              modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+            )
+          }
+          i++
+        }
+        // Heading 2: ##
+        trimmed.startsWith("## ") -> {
+          val text = trimmed.removePrefix("## ").trim()
+          SelectionContainer {
+            Text(
+              text = parseInlineMarkdown(text),
+              style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.5.sp,
+                color = BrandTextBlack,
+                lineHeight = 23.sp
+              ),
+              modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)
+            )
+          }
+          i++
+        }
+        // Heading 3: ###
+        trimmed.startsWith("### ") -> {
+          val text = trimmed.removePrefix("### ").trim()
+          SelectionContainer {
+            Text(
+              text = parseInlineMarkdown(text),
+              style = MaterialTheme.typography.titleSmall.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = BrandPrimaryOrange,
+                lineHeight = 22.sp
+              ),
+              modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+            )
+          }
+          i++
+        }
+        // Blockquote: >
+        trimmed.startsWith(">") -> {
+          val quoteText = trimmed.removePrefix(">").trim()
+          Box(
+            modifier = Modifier
+              .fillMaxWidth()
+              .clip(RoundedCornerShape(8.dp))
+              .background(LightSurfaceElevated)
+              .border(BorderStroke(1.dp, LightBorder), RoundedCornerShape(8.dp))
+              .padding(horizontal = 12.dp, vertical = 8.dp)
+          ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Box(
+                modifier = Modifier
+                  .width(3.dp)
+                  .height(20.dp)
+                  .background(BrandPrimaryOrange, RoundedCornerShape(2.dp))
+              )
+              Spacer(modifier = Modifier.width(10.dp))
+              SelectionContainer {
+                Text(
+                  text = parseInlineMarkdown(quoteText, BrandTextSecondary),
+                  fontSize = 14.5.sp,
+                  lineHeight = 21.sp,
+                  fontStyle = FontStyle.Italic,
+                  color = BrandTextSecondary
+                )
+              }
+            }
+          }
+          i++
+        }
+        // Bulleted List: - or *
+        trimmed.startsWith("- ") || trimmed.startsWith("* ") -> {
+          val itemText = trimmed.substring(2).trim()
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(start = 6.dp, top = 2.dp, bottom = 2.dp),
+            verticalAlignment = Alignment.Top
+          ) {
+            Box(
+              modifier = Modifier
+                .padding(top = 8.dp)
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(BrandPrimaryOrange)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            SelectionContainer(modifier = Modifier.weight(1f)) {
+              Text(
+                text = parseInlineMarkdown(itemText),
+                fontSize = 15.sp,
+                lineHeight = 23.sp,
+                color = BrandTextBlack
+              )
+            }
+          }
+          i++
+        }
+        // Numbered List: 1. 2. etc.
+        Pattern.compile("^([0-9]+)\\.\\s+(.*)$").matcher(trimmed).matches() -> {
+          val numMatcher = Pattern.compile("^([0-9]+)\\.\\s+(.*)$").matcher(trimmed)
+          numMatcher.find()
+          val num = numMatcher.group(1) ?: "1"
+          val itemText = numMatcher.group(2) ?: ""
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(start = 4.dp, top = 2.dp, bottom = 2.dp),
+            verticalAlignment = Alignment.Top
+          ) {
+            Text(
+              text = "$num.",
+              fontWeight = FontWeight.Bold,
+              fontSize = 15.sp,
+              lineHeight = 23.sp,
+              color = BrandPrimaryOrange,
+              modifier = Modifier.width(22.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            SelectionContainer(modifier = Modifier.weight(1f)) {
+              Text(
+                text = parseInlineMarkdown(itemText),
+                fontSize = 15.sp,
+                lineHeight = 23.sp,
+                color = BrandTextBlack
+              )
+            }
+          }
+          i++
+        }
+        // Standard Paragraph
+        else -> {
+          SelectionContainer {
+            Text(
+              text = parseInlineMarkdown(trimmed),
+              fontSize = 15.5.sp,
+              lineHeight = 24.sp,
+              fontWeight = FontWeight.Normal,
+              color = BrandTextBlack,
+              modifier = Modifier.padding(vertical = 2.dp)
+            )
+          }
+          i++
+        }
+      }
     }
   }
 }
@@ -331,10 +558,24 @@ fun AiAgentScreen(
     }
   }
 
-  // 3. When a new message is posted by the user, smoothly scroll to bottom
+  val density = LocalDensity.current
+  val imeBottom = WindowInsets.ime.getBottom(density)
+  val isImeOpen = imeBottom > 0
+
+  // Auto-scroll when software keyboard opens
+  LaunchedEffect(isImeOpen) {
+    if (isImeOpen && messages.isNotEmpty()) {
+      kotlinx.coroutines.delay(100)
+      val targetIdx = maxOf(0, listState.layoutInfo.totalItemsCount - 1)
+      listState.animateScrollToItem(targetIdx, scrollOffset = 100000)
+    }
+  }
+
+  // 3. When a new message is posted or arrives, smoothly scroll to bottom
   LaunchedEffect(messages.size) {
-    if (messages.isNotEmpty() && (isNearBottom || messages.lastOrNull()?.sender == MessageSender.USER)) {
-      listState.animateScrollToItem(messages.size - 1, scrollOffset = 100000)
+    if (messages.isNotEmpty()) {
+      val targetIdx = maxOf(0, listState.layoutInfo.totalItemsCount - 1)
+      listState.animateScrollToItem(targetIdx, scrollOffset = 100000)
     }
   }
 
@@ -577,8 +818,8 @@ fun AiAgentScreen(
       LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 4.dp, bottom = 64.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
       ) {
         // If conversation has no user messages yet, show hero suggestions inside the LazyColumn
         if (!hasUserMessages) {
@@ -1028,7 +1269,7 @@ fun HeroSuggestionsCard(
       .padding(vertical = 16.dp),
     contentAlignment = Alignment.Center
   ) {
-    Floating3DElements()
+    Floating3DElements(modifier = Modifier.matchParentSize())
 
     Column(
       horizontalAlignment = Alignment.CenterHorizontally,
@@ -1153,66 +1394,111 @@ fun ChatMessageBubble(
     horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
   ) {
     if (isUser) {
-      // User Question: Black text on soft light surface with subtle gray border
-      Column(horizontalAlignment = Alignment.End) {
-        // Show user attachments if any
-        if (message.attachments.isNotEmpty()) {
-          Row(
+      // User Question: Clean bubble aligned right with high contrast and modern radius
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.Top
+      ) {
+        Column(
+          horizontalAlignment = Alignment.End,
+          modifier = Modifier.weight(1f, fill = false)
+        ) {
+          // Show user attachments if any
+          if (message.attachments.isNotEmpty()) {
+            Row(
+              modifier = Modifier
+                .padding(bottom = 6.dp)
+                .horizontalScroll(rememberScrollState()),
+              horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+              message.attachments.forEach { att ->
+                AttachedFileBadge(attachment = att)
+              }
+            }
+          }
+
+          Box(
             modifier = Modifier
-              .padding(bottom = 6.dp)
-              .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+              .clip(RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp))
+              .background(LightSurfaceElevated)
+              .border(1.dp, LightBorder, RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp))
+              .padding(horizontal = 16.dp, vertical = 12.dp)
           ) {
-            message.attachments.forEach { att ->
-              AttachedFileBadge(attachment = att)
+            SelectionContainer {
+              Text(
+                text = message.content,
+                fontSize = 15.5.sp,
+                lineHeight = 23.sp,
+                color = BrandTextBlack,
+                fontWeight = FontWeight.Normal
+              )
             }
           }
         }
 
+        Spacer(modifier = Modifier.width(10.dp))
+
+        // User Avatar Badge
         Box(
           modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(LightSurfaceElevated)
-            .border(1.dp, LightBorder, RoundedCornerShape(16.dp))
-            .padding(12.dp)
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(BrandPrimaryOrange.copy(alpha = 0.15f))
+            .border(1.dp, BrandPrimaryOrange.copy(alpha = 0.3f), CircleShape),
+          contentAlignment = Alignment.Center
         ) {
-          SelectionContainer {
-            Text(
-              text = message.content,
-              style = MaterialTheme.typography.bodyMedium.copy(
-                color = BrandTextBlack,
-                fontWeight = FontWeight.Medium
-              )
-            )
-          }
+          Text(
+            text = "YOU",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = BrandPrimaryOrange
+          )
         }
       }
     } else {
-      // AI Response: Black text on white background
+      // AI Response: Clean left-aligned, full width reading area like ChatGPT, Gemini and Claude
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .padding(vertical = 4.dp)
+          .padding(vertical = 6.dp)
       ) {
+        // AI Header Row with Brand Avatar, Name, and Quick Copy
         Row(
-          modifier = Modifier.fillMaxWidth(),
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically
         ) {
           Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
               modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(BrandPrimaryOrange)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-              text = "ALTRON CODE AI",
-              fontSize = 12.sp,
-              color = BrandPrimaryOrange,
-              fontWeight = FontWeight.Bold
-            )
+                .size(30.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(BrandPrimaryOrange),
+              contentAlignment = Alignment.Center
+            ) {
+              Icon(
+                imageVector = Icons.Default.Terminal,
+                contentDescription = "ALTRON AI",
+                tint = Color.White,
+                modifier = Modifier.size(17.dp)
+              )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Text(
+                text = "ALTRON CODE AI",
+                fontSize = 13.5.sp,
+                color = BrandTextBlack,
+                fontWeight = FontWeight.Bold
+              )
+              Spacer(modifier = Modifier.width(6.dp))
+              StatusBadge(text = "ASSISTANT", color = BrandPrimaryOrange)
+            }
           }
 
           // Dedicated "Copy Response" action button for AI responses
@@ -1234,35 +1520,21 @@ fun ChatMessageBubble(
           }
         }
 
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // Parse Message into Text and Code Blocks
+        // Parse Message into Text and Code Blocks with Rich Markdown rendering
         val segments = remember(message.content) { parseMessageSegments(message.content) }
 
         segments.forEach { segment ->
           when (segment) {
             is ContentSegment.Text -> {
-              val annotated = remember(segment.content) {
-                parseMarkdownSpans(segment.content, BrandTextBlack)
-              }
-              // SelectionContainer allows word, sentence, and long-press selection on Android
-              SelectionContainer {
-                Text(
-                  text = annotated,
-                  style = MaterialTheme.typography.bodyMedium,
-                  color = BrandTextBlack,
-                  lineHeight = 20.sp,
-                  modifier = Modifier.padding(vertical = 4.dp)
-                )
-              }
+              MarkdownTextBlock(content = segment.content)
             }
             is ContentSegment.Code -> {
-              Spacer(modifier = Modifier.height(6.dp))
+              Spacer(modifier = Modifier.height(8.dp))
               CodeBlockCard(
                 data = segment.data,
                 onSaveToProject = onSaveCode
               )
-              Spacer(modifier = Modifier.height(6.dp))
+              Spacer(modifier = Modifier.height(8.dp))
             }
           }
         }

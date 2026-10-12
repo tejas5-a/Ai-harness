@@ -117,15 +117,17 @@ class ProjectRepository(private val context: Context) {
             |<html lang="en">
             |<head>
             |    <meta charset="UTF-8">
-            |    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            |    <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
             |    <title>$name</title>
             |    <link rel="stylesheet" href="styles.css">
             |</head>
             |<body>
-            |    <div class="card">
-            |        <h1>⚡ $name</h1>
-            |        <p>Built with ALTRON CODE AI Mobile Studio.</p>
-            |        <button id="btn">Run Action</button>
+            |    <div id="root" class="app-container">
+            |        <div class="card">
+            |            <h1>⚡ $name</h1>
+            |            <p>Built with ALTRON CODE AI Mobile Studio.</p>
+            |            <button id="btn">Run Action</button>
+            |        </div>
             |    </div>
             |    <script src="app.js"></script>
             |</body>
@@ -133,15 +135,26 @@ class ProjectRepository(private val context: Context) {
           """.trimMargin()
         )
         File(projectDir, "styles.css").writeText(
-          """body {
+          """html, body, #root {
+            |    height: 100%;
+            |    margin: 0;
+            |}
+            |body {
             |    background: #111317;
             |    color: #e6ebf5;
-            |    font-family: system-ui, sans-serif;
+            |    font-family: system-ui, -apple-system, sans-serif;
             |    display: flex;
+            |    flex-direction: column;
+            |    height: 100dvh;
+            |    overflow: hidden;
+            |}
+            |.app-container {
+            |    display: flex;
+            |    flex-direction: column;
+            |    flex: 1;
             |    justify-content: center;
             |    align-items: center;
-            |    height: 100vh;
-            |    margin: 0;
+            |    padding: 16px;
             |}
             |.card {
             |    background: #1a1e27;
@@ -149,20 +162,33 @@ class ProjectRepository(private val context: Context) {
             |    padding: 28px;
             |    border-radius: 12px;
             |    text-align: center;
+            |    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
             |}
             |button {
             |    background: #ff6b00;
             |    color: #fff;
             |    border: none;
-            |    padding: 10px 20px;
-            |    border-radius: 6px;
+            |    padding: 12px 24px;
+            |    border-radius: 8px;
             |    cursor: pointer;
             |    font-weight: bold;
+            |    font-size: 14px;
+            |    transition: opacity 0.2s;
+            |}
+            |button:active {
+            |    opacity: 0.8;
             |}
           """.trimMargin()
         )
         File(projectDir, "app.js").writeText(
-          """document.getElementById('btn').addEventListener('click', () => {
+          """// Auto-handle visualViewport for mobile keyboard fit
+            |if (window.visualViewport) {
+            |    window.visualViewport.addEventListener('resize', () => {
+            |        document.body.style.height = `${'$'}{window.visualViewport.height}px`;
+            |    });
+            |}
+            |
+            |document.getElementById('btn').addEventListener('click', () => {
             |    alert('ALTRON Action Executed Successfully!');
             |});
           """.trimMargin()

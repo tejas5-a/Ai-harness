@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -92,7 +93,7 @@ class MainActivity : ComponentActivity() {
                   .fillMaxHeight()
                   .weight(1f),
                 containerColor = Color.Transparent,
-                contentWindowInsets = WindowInsets(0, 0, 0, 0), // Prevents double-inset application on child screens
+                contentWindowInsets = WindowInsets.statusBars, // Insets content safely below status bar
                 snackbarHost = { SnackbarHost(snackbarHostState) },
                 topBar = {
                   AltronTopBar(
