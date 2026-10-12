@@ -5,10 +5,12 @@ import java.util.UUID
 
 enum class ProjectType(val displayName: String, val badge: String) {
   ANDROID("Android Compose", "KOTLIN"),
+  ANDROID_KOTLIN("Android Compose", "KOTLIN"),
   WEB("Web App (HTML/JS/CSS)", "WEB"),
   PYTHON("Python Script", "PY"),
   KOTLIN("Kotlin Script", "KT"),
   NODE("Node.js / Express", "NODE"),
+  NODEJS("Node.js / Express", "NODE"),
   CUSTOM("Custom Project", "SRC")
 }
 
@@ -20,7 +22,9 @@ data class Project(
   val rootDir: File,
   val createdAt: Long = System.currentTimeMillis(),
   val lastModified: Long = System.currentTimeMillis(),
-  val gitRepoUrl: String? = null
+  val gitRepoUrl: String? = null,
+  val aiInstructions: String = "",
+  val preferredModel: String? = null
 )
 
 data class ProjectFile(
@@ -145,7 +149,9 @@ data class ApiProviderConfig(
   val lastTestedStatus: String? = null,
   val lastTestedSuccess: Boolean? = null,
   val dynamicModels: List<String> = emptyList(),
-  val capabilities: String = providerType.defaultCapabilities
+  val capabilities: String = providerType.defaultCapabilities,
+  val researchModel: String = providerType.defaultModel,
+  val codingModel: String = providerType.defaultModel
 )
 
 enum class MessageSender {
@@ -154,17 +160,37 @@ enum class MessageSender {
   SYSTEM
 }
 
-enum class AgentMode { ASK, CODE, AGENT }
+enum class AgentMode(val displayName: String, val badge: String, val tagLine: String) {
+  RESEARCH("Research", "WEB", "Live internet search & verified source synthesis"),
+  CODE("Coder", "CODE", "Inspect, propose diffs, edit & generate project code"),
+  AGENT("Agent", "AUTO", "Autonomous tasks, tool executions & terminal commands"),
+  ASK("Ask", "CHAT", "Direct conceptual explanations & fast queries")
+}
+
+data class ResearchSource(
+  val title: String,
+  val url: String,
+  val snippet: String
+)
+
+data class ResearchResult(
+  val query: String,
+  val sources: List<ResearchSource>,
+  val synthesis: String,
+  val timestamp: Long = System.currentTimeMillis()
+)
 
 data class AgentToolAction(
   val id: String = UUID.randomUUID().toString(),
-  val toolName: String, // "create_file", "edit_file", "run_terminal", "inspect_project"
+  val toolName: String, // "create_file", "edit_file", "run_terminal", "inspect_project", "web_search"
   val targetPath: String? = null,
   val content: String? = null,
+  val originalContent: String? = null,
   val command: String? = null,
   val requiresApproval: Boolean = false,
   val isApproved: Boolean = false,
-  val status: String = "PENDING"
+  val status: String = "PENDING",
+  val diff: FileDiff? = null
 )
 
 enum class AttachmentType {
@@ -194,7 +220,8 @@ data class ChatMessage(
   val isStreaming: Boolean = false,
   val error: String? = null,
   val providerUsed: String? = null,
-  val attachments: List<ChatAttachment> = emptyList()
+  val attachments: List<ChatAttachment> = emptyList(),
+  val researchSources: List<ResearchSource> = emptyList()
 )
 
 enum class TerminalEntryType {
@@ -223,7 +250,93 @@ data class Conversation(
   val createdAt: Long = System.currentTimeMillis(),
   val lastModified: Long = System.currentTimeMillis(),
   val isPinned: Boolean = false,
-  val projectId: String
+  val projectId: String,
+  val providerUsed: String = "GEMINI",
+  val modelUsed: String = "gemini-3.8-flash",
+  val mode: AgentMode = AgentMode.AGENT
+)
+
+// GitHub Integration Models
+data class GitHubAccount(
+  val username: String,
+  val name: String,
+  val avatarUrl: String,
+  val htmlUrl: String,
+  val publicRepos: Int,
+  val totalPrivateRepos: Int,
+  val token: String
+)
+
+data class GitHubRepo(
+  val id: Long,
+  val name: String,
+  val fullName: String,
+  val description: String?,
+  val isPrivate: Boolean,
+  val htmlUrl: String,
+  val defaultBranch: String,
+  val language: String?,
+  val stargazersCount: Int,
+  val updatedAt: String
+)
+
+data class GitHubBranch(
+  val name: String,
+  val commitSha: String
+)
+
+data class GitHubCommitResult(
+  val success: Boolean,
+  val commitSha: String? = null,
+  val htmlUrl: String? = null,
+  val message: String
+)
+
+// Android APK Builder Models
+enum class ApkBuildStatus {
+  IDLE,
+  VALIDATING,
+  COMPILING,
+  PACKAGING,
+  SUCCESS,
+  FAILED
+}
+
+data class ApkBuildState(
+  val status: ApkBuildStatus = ApkBuildStatus.IDLE,
+  val currentStep: String = "Ready to build",
+  val progressPercent: Float = 0f,
+  val logs: List<String> = emptyList(),
+  val outputApkFile: File? = null,
+  val apkSizeBytes: Long = 0L,
+  val errorMessage: String? = null,
+  val errorAnalysis: String? = null,
+  val durationMs: Long = 0L
+)
+
+// File Diff & Version History Models
+enum class DiffLineType { UNCHANGED, ADDED, REMOVED }
+
+data class DiffLine(
+  val type: DiffLineType,
+  val content: String,
+  val oldLineNum: Int? = null,
+  val newLineNum: Int? = null
+)
+
+data class FileDiff(
+  val relativePath: String,
+  val lines: List<DiffLine>,
+  val additionsCount: Int,
+  val deletionsCount: Int
+)
+
+data class FileBackupSnapshot(
+  val id: String = UUID.randomUUID().toString(),
+  val relativePath: String,
+  val content: String,
+  val timestamp: Long = System.currentTimeMillis(),
+  val reason: String = "Pre-edit backup"
 )
 
 data class BuildWorkflowInfo(

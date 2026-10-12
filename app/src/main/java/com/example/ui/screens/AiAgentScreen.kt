@@ -400,7 +400,7 @@ fun MarkdownTextBlock(
           ) {
             Box(
               modifier = Modifier
-                .padding(top = 8.dp)
+                .padding(top = 9.dp)
                 .size(6.dp)
                 .clip(CircleShape)
                 .background(BrandPrimaryOrange)
@@ -409,8 +409,8 @@ fun MarkdownTextBlock(
             SelectionContainer(modifier = Modifier.weight(1f)) {
               Text(
                 text = parseInlineMarkdown(itemText),
-                fontSize = 15.sp,
-                lineHeight = 23.sp,
+                fontSize = 16.sp,
+                lineHeight = 25.6.sp,
                 color = BrandTextBlack
               )
             }
@@ -432,17 +432,17 @@ fun MarkdownTextBlock(
             Text(
               text = "$num.",
               fontWeight = FontWeight.Bold,
-              fontSize = 15.sp,
-              lineHeight = 23.sp,
+              fontSize = 16.sp,
+              lineHeight = 25.6.sp,
               color = BrandPrimaryOrange,
-              modifier = Modifier.width(22.dp)
+              modifier = Modifier.width(24.dp)
             )
             Spacer(modifier = Modifier.width(6.dp))
             SelectionContainer(modifier = Modifier.weight(1f)) {
               Text(
                 text = parseInlineMarkdown(itemText),
-                fontSize = 15.sp,
-                lineHeight = 23.sp,
+                fontSize = 16.sp,
+                lineHeight = 25.6.sp,
                 color = BrandTextBlack
               )
             }
@@ -454,11 +454,11 @@ fun MarkdownTextBlock(
           SelectionContainer {
             Text(
               text = parseInlineMarkdown(trimmed),
-              fontSize = 15.5.sp,
-              lineHeight = 24.sp,
+              fontSize = 16.sp,
+              lineHeight = 25.6.sp,
               fontWeight = FontWeight.Normal,
               color = BrandTextBlack,
-              modifier = Modifier.padding(vertical = 2.dp)
+              modifier = Modifier.padding(vertical = 3.dp)
             )
           }
           i++
@@ -886,7 +886,7 @@ fun AiAgentScreen(
               Icon(
                 imageVector = Icons.Default.ArrowDownward,
                 contentDescription = "Jump to latest",
-                tint = BrandTextBlack,
+                tint = Color.White,
                 modifier = Modifier.size(16.dp)
               )
               Spacer(modifier = Modifier.width(6.dp))
@@ -894,7 +894,7 @@ fun AiAgentScreen(
                 text = "Jump to latest",
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp,
-                color = BrandTextBlack
+                color = Color.White
               )
             }
           }
@@ -1306,14 +1306,14 @@ fun HeroSuggestionsCard(
           shape = RoundedCornerShape(12.dp),
           colors = ButtonDefaults.buttonColors(
             containerColor = BrandPrimaryOrange,
-            contentColor = BrandTextBlack
+            contentColor = Color.White
           )
         ) {
           Text(
             text = prompt,
             fontWeight = FontWeight.Bold,
             fontSize = 13.sp,
-            color = BrandTextBlack,
+            color = Color.White,
             modifier = Modifier.fillMaxWidth()
           )
         }
@@ -1430,8 +1430,8 @@ fun ChatMessageBubble(
             SelectionContainer {
               Text(
                 text = message.content,
-                fontSize = 15.5.sp,
-                lineHeight = 23.sp,
+                fontSize = 16.sp,
+                lineHeight = 25.6.sp,
                 color = BrandTextBlack,
                 fontWeight = FontWeight.Normal
               )

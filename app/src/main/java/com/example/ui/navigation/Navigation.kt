@@ -20,10 +20,19 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.Icon
@@ -47,28 +56,58 @@ import com.example.ui.theme.BrandTextBlack
 import com.example.ui.theme.BrandTextInactive
 import com.example.ui.theme.GlassBorder
 import com.example.ui.theme.GlassSurface
+import com.example.ui.theme.StitchBorder
+import com.example.ui.theme.StitchCardBackground
+import com.example.ui.theme.StitchMainBackground
+import com.example.ui.theme.StitchPrimaryAccent
+import com.example.ui.theme.StitchPrimaryText
+import com.example.ui.theme.StitchSecondaryText
 
+/**
+ * 12 Screens for ALTRON CODE AI based on Google Stitch Designs:
+ * 1. HOME: Home Dashboard
+ * 2. RESEARCH: AI Research Workspace
+ * 3. CODER: AI Coder Workspace
+ * 4. FILE_EXPLORER: Project File Explorer
+ * 5. CODE_EDITOR: Code Editor
+ * 6. TERMINAL: Terminal
+ * 7. APK_BUILDER: APK Builder (Compiler Studio)
+ * 8. GITHUB: GitHub Connection
+ * 9. GITHUB_WORKSPACE: GitHub Repository Workspace
+ * 10. PROJECTS: Projects Dashboard
+ * 11. CHATS: AI Chats
+ * 12. SETTINGS: API Settings
+ */
 enum class Screen(
   val route: String,
   val label: String,
   val icon: ImageVector,
   val testTag: String
 ) {
-  CHAT("chat", "Chat", Icons.Default.Psychology, "nav_chat"),
+  HOME("home", "Home", Icons.Default.Home, "nav_home"),
   PROJECTS("projects", "Projects", Icons.Default.Folder, "nav_projects"),
+  CHATS("chats", "Chats", Icons.Default.Chat, "nav_chats"),
+  SETTINGS("settings", "Settings", Icons.Default.Settings, "nav_settings"),
+
+  // Dedicated Developer Workspaces
+  RESEARCH("research", "Research", Icons.Default.Explore, "nav_research"),
+  CODER("coder", "Coder", Icons.Default.Code, "nav_coder"),
+  FILE_EXPLORER("file_explorer", "Files", Icons.Default.FolderOpen, "nav_files"),
+  CODE_EDITOR("code_editor", "Editor", Icons.Default.EditNote, "nav_editor"),
   TERMINAL("terminal", "Terminal", Icons.Default.Terminal, "nav_terminal"),
-  SETTINGS("settings", "API Panel", Icons.Default.VpnKey, "nav_api_panel"),
-  PREVIEW("preview", "Live Preview", Icons.Default.PlayArrow, "nav_preview"),
+  APK_BUILDER("apk_builder", "Builder", Icons.Default.Android, "nav_builder"),
+  GITHUB("github", "GitHub", Icons.Default.Code, "nav_github"),
+  GITHUB_WORKSPACE("github_workspace", "Repo", Icons.Default.AccountTree, "nav_repo"),
+
+  // Compatibility aliases
+  CHAT("chats", "Chats", Icons.Default.Chat, "nav_chats"),
+  PREVIEW("preview", "Preview", Icons.Default.PlayArrow, "nav_preview"),
   TASKS("tasks", "Tasks", Icons.Default.Autorenew, "nav_tasks")
 }
 
 /**
- * AltronBottomNavBar: White glass-style surface with subtle shadow and orange active indicator.
- * Displays all 4 primary navigation tabs:
- * 1. Chat (left)
- * 2. Projects
- * 3. Terminal
- * 4. API Panel (right)
+ * AltronBottomNavBar: 4-tab Stitch navigation bar (Home, Projects, Chats, Settings).
+ * Styled with warm ivory background #FAF9F6, terracotta accent #D97757, and subtle border #E7E3DC.
  */
 @Composable
 fun AltronBottomNavBar(
@@ -76,14 +115,14 @@ fun AltronBottomNavBar(
   onScreenSelected: (Screen) -> Unit,
   modifier: Modifier = Modifier
 ) {
-  val mainScreens = listOf(Screen.CHAT, Screen.PROJECTS, Screen.TERMINAL, Screen.SETTINGS)
+  val primaryTabs = listOf(Screen.HOME, Screen.PROJECTS, Screen.CHATS, Screen.SETTINGS)
 
   Surface(
     modifier = modifier
       .fillMaxWidth()
       .windowInsetsPadding(WindowInsets.navigationBars)
-      .shadow(elevation = 8.dp, spotColor = Color(0x14000000)),
-    color = GlassSurface,
+      .shadow(elevation = 6.dp, spotColor = Color(0x0A000000)),
+    color = StitchMainBackground,
     tonalElevation = 0.dp
   ) {
     Box(
@@ -91,20 +130,24 @@ fun AltronBottomNavBar(
         .fillMaxWidth()
         .border(
           width = 1.dp,
-          color = GlassBorder,
+          color = StitchBorder,
           shape = RoundedCornerShape(0.dp)
         )
-        .padding(vertical = 6.dp, horizontal = 6.dp)
+        .padding(vertical = 4.dp, horizontal = 8.dp)
     ) {
       Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        mainScreens.forEach { screen ->
-          val isSelected = currentScreen == screen
-          val itemBg = if (isSelected) BrandPrimaryOrange else Color.Transparent
-          val contentColor = if (isSelected) BrandTextBlack else BrandTextInactive
+        primaryTabs.forEach { screen ->
+          val isSelected = currentScreen == screen ||
+            (screen == Screen.HOME && currentScreen == Screen.RESEARCH) ||
+            (screen == Screen.PROJECTS && (currentScreen == Screen.FILE_EXPLORER || currentScreen == Screen.CODE_EDITOR || currentScreen == Screen.GITHUB_WORKSPACE)) ||
+            (screen == Screen.CHATS && (currentScreen == Screen.CHAT || currentScreen == Screen.CODER)) ||
+            (screen == Screen.SETTINGS && (currentScreen == Screen.GITHUB || currentScreen == Screen.APK_BUILDER || currentScreen == Screen.TERMINAL))
+
+          val contentColor = if (isSelected) StitchPrimaryAccent else StitchSecondaryText
 
           Box(
             modifier = Modifier
@@ -112,12 +155,11 @@ fun AltronBottomNavBar(
               .padding(horizontal = 2.dp)
               .defaultMinSize(minHeight = 48.dp)
               .clip(RoundedCornerShape(12.dp))
-              .background(itemBg)
               .clickable(
                 onClick = { onScreenSelected(screen) },
                 role = Role.Tab
               )
-              .padding(vertical = 5.dp, horizontal = 2.dp)
+              .padding(vertical = 6.dp, horizontal = 2.dp)
               .testTag(screen.testTag),
             contentAlignment = Alignment.Center
           ) {
@@ -127,16 +169,16 @@ fun AltronBottomNavBar(
             ) {
               Icon(
                 imageVector = screen.icon,
-                contentDescription = null,
+                contentDescription = screen.label,
                 tint = contentColor,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(22.dp)
               )
               Spacer(modifier = Modifier.height(2.dp))
               Text(
                 text = screen.label,
                 fontSize = 11.sp,
                 lineHeight = 12.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                 color = contentColor,
                 maxLines = 1,
                 softWrap = false,

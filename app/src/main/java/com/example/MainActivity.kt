@@ -2,6 +2,7 @@ package com.example
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -38,18 +39,33 @@ import com.example.ui.navigation.AltronBottomNavBar
 import com.example.ui.navigation.AltronNavigationRail
 import com.example.ui.navigation.Screen
 import com.example.ui.screens.AiAgentScreen
+import com.example.ui.screens.AiCoderScreen
+import com.example.ui.screens.AiResearchScreen
 import com.example.ui.screens.ApiProvidersScreen
+import com.example.ui.screens.ApkBuilderScreen
 import com.example.ui.screens.BackgroundTasksScreen
+import com.example.ui.screens.CodeEditorScreen
+import com.example.ui.screens.GitHubConnectionScreen
+import com.example.ui.screens.GitHubWorkspaceScreen
+import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LivePreviewScreen
+import com.example.ui.screens.ProjectFileExplorerScreen
+import com.example.ui.screens.ProjectsDashboardScreen
 import com.example.ui.screens.ProjectsScreen
 import com.example.ui.screens.TerminalScreen
+import com.example.ui.screens.TerminalWorkspaceScreen
 import com.example.ui.theme.AltronTheme
 import com.example.ui.viewmodel.AltronViewModel
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    enableEdgeToEdge()
+    enableEdgeToEdge(
+      statusBarStyle = SystemBarStyle.light(
+        android.graphics.Color.TRANSPARENT,
+        android.graphics.Color.TRANSPARENT
+      )
+    )
     setContent {
       val viewModel: AltronViewModel = viewModel()
       val currentScreen by viewModel.currentScreen.collectAsState()
@@ -128,9 +144,17 @@ class MainActivity : ComponentActivity() {
                     label = "ScreenTransition"
                   ) { target ->
                     when (target) {
-                      Screen.CHAT -> AiAgentScreen(viewModel = viewModel)
-                      Screen.PROJECTS -> ProjectsScreen(viewModel = viewModel)
-                      Screen.TERMINAL -> TerminalScreen(viewModel = viewModel)
+                      Screen.HOME -> HomeScreen(viewModel = viewModel)
+                      Screen.RESEARCH -> AiResearchScreen(viewModel = viewModel)
+                      Screen.CODER -> AiCoderScreen(viewModel = viewModel)
+                      Screen.FILE_EXPLORER -> ProjectFileExplorerScreen(viewModel = viewModel)
+                      Screen.CODE_EDITOR -> CodeEditorScreen(viewModel = viewModel)
+                      Screen.TERMINAL -> TerminalWorkspaceScreen(viewModel = viewModel)
+                      Screen.APK_BUILDER -> ApkBuilderScreen(viewModel = viewModel)
+                      Screen.GITHUB -> GitHubConnectionScreen(viewModel = viewModel)
+                      Screen.GITHUB_WORKSPACE -> GitHubWorkspaceScreen(viewModel = viewModel)
+                      Screen.PROJECTS -> ProjectsDashboardScreen(viewModel = viewModel)
+                      Screen.CHATS, Screen.CHAT -> AiAgentScreen(viewModel = viewModel)
                       Screen.SETTINGS -> ApiProvidersScreen(viewModel = viewModel)
                       Screen.PREVIEW -> LivePreviewScreen(viewModel = viewModel)
                       Screen.TASKS -> BackgroundTasksScreen(viewModel = viewModel)

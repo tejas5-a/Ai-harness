@@ -146,7 +146,7 @@ fun ProjectsScreen(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
       ) {
-        if (activeProject != null) {
+        if (activeProject != null || projects.isNotEmpty()) {
           Button(
             onClick = { showDeleteProjectDialog = true },
             colors = ButtonDefaults.buttonColors(
@@ -161,13 +161,15 @@ fun ProjectsScreen(
             Icon(
               imageVector = Icons.Default.Delete,
               contentDescription = "Delete Project and Files",
+              tint = TerminalRed,
               modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
-              text = "Delete",
+              text = if (activeProject != null) "Delete Project & Files" else "Delete Project",
               fontSize = 12.sp,
-              fontWeight = FontWeight.Bold
+              fontWeight = FontWeight.Bold,
+              color = TerminalRed
             )
           }
         }
@@ -423,6 +425,29 @@ fun ProjectsScreen(
         }
 
         IconButton(
+          onClick = {
+            if (activeTab != null) {
+              deletingFile = activeTab!!.file
+            } else if (currentFiles.isNotEmpty()) {
+              deletingFile = currentFiles.first().file
+            }
+          },
+          enabled = activeTab != null || currentFiles.isNotEmpty(),
+          modifier = Modifier
+            .size(38.dp)
+            .background(LightSurface, RoundedCornerShape(8.dp))
+            .border(1.dp, LightBorder, RoundedCornerShape(8.dp))
+            .testTag("file_explorer_delete_file_btn")
+        ) {
+          Icon(
+            imageVector = Icons.Default.Delete,
+            contentDescription = "Delete File",
+            tint = if (activeTab != null || currentFiles.isNotEmpty()) TerminalRed else BrandTextSecondary.copy(alpha = 0.4f),
+            modifier = Modifier.size(18.dp)
+          )
+        }
+
+        IconButton(
           onClick = { viewModel.setScreen(Screen.TASKS) },
           modifier = Modifier
             .size(38.dp)
@@ -508,8 +533,8 @@ fun ProjectsScreen(
     )
   }
 
-  if (showDeleteProjectDialog && activeProject != null) {
-    val projectToDelete = activeProject!!
+  if (showDeleteProjectDialog && (activeProject != null || projects.isNotEmpty())) {
+    val projectToDelete = activeProject ?: projects.first()
     Dialog(onDismissRequest = { showDeleteProjectDialog = false }) {
       AltronGlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(

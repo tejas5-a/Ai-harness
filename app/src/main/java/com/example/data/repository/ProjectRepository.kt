@@ -39,6 +39,12 @@ class ProjectRepository(private val context: Context) {
         "Local Android Workspace Project"
       }
 
+      val instructionsFile = File(dir, ".altron_instructions")
+      val instructions = if (instructionsFile.exists()) instructionsFile.readText() else ""
+
+      val modelFile = File(dir, ".altron_model")
+      val preferredModel = if (modelFile.exists()) modelFile.readText().trim() else null
+
       Project(
         id = dir.name,
         name = dir.name.replace("_", " "),
@@ -46,7 +52,9 @@ class ProjectRepository(private val context: Context) {
         type = type,
         rootDir = dir,
         createdAt = dir.lastModified(),
-        lastModified = dir.lastModified()
+        lastModified = dir.lastModified(),
+        aiInstructions = instructions,
+        preferredModel = preferredModel
       )
     }
 
@@ -268,6 +276,30 @@ class ProjectRepository(private val context: Context) {
     // Boundary check
     if (!isSafeWithinWorkspace(project.rootDir)) return false
     return project.rootDir.deleteRecursively()
+  }
+
+  fun renameProject(project: Project, newName: String): Project {
+    val sanitized = newName.trim().replace(Regex("[^a-zA-Z0-9_-]"), "_").ifEmpty { "project_${System.currentTimeMillis()}" }
+    val newDir = File(workspaceDir, sanitized)
+    if (newDir != project.rootDir) {
+      project.rootDir.renameTo(newDir)
+    }
+    return project.copy(
+      id = newDir.name,
+      name = newName.trim(),
+      rootDir = newDir,
+      lastModified = System.currentTimeMillis()
+    )
+  }
+
+  fun saveProjectInstructions(project: Project, instructions: String) {
+    val instructionsFile = File(project.rootDir, ".altron_instructions")
+    instructionsFile.writeText(instructions)
+  }
+
+  fun saveProjectPreferredModel(project: Project, model: String) {
+    val modelFile = File(project.rootDir, ".altron_model")
+    modelFile.writeText(model.trim())
   }
 
   fun listFiles(project: Project, subDirectory: File? = null): List<ProjectFile> {

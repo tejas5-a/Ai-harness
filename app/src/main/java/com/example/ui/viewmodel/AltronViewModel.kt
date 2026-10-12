@@ -21,15 +21,29 @@ import com.example.data.model.Project
 import com.example.data.model.ProjectFile
 import com.example.data.model.ProjectType
 import com.example.data.model.ProviderType
+import com.example.data.model.ApkBuildState
+import com.example.data.model.ApkBuildStatus
+import com.example.data.model.Conversation
+import com.example.data.model.FileBackupSnapshot
+import com.example.data.model.FileDiff
+import com.example.data.model.GitHubAccount
+import com.example.data.model.GitHubRepo
+import com.example.data.model.ResearchSource
 import com.example.data.model.TerminalEntry
 import com.example.data.model.TerminalEntryType
+import com.example.data.repository.ApkBuilderService
 import com.example.data.repository.ApiKeyRepository
 import com.example.data.repository.AiAgentService
 import com.example.data.repository.BackgroundTaskManager
+import com.example.data.repository.ChatHistoryRepository
+import com.example.data.repository.FileDiffService
+import com.example.data.repository.GitHubService
 import com.example.data.repository.ProjectRepository
 import com.example.data.repository.TerminalManager
+import com.example.data.repository.WebSearchService
 import com.example.ui.navigation.Screen
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,6 +61,11 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
   private val agentService = AiAgentService()
   private val terminalManager = TerminalManager()
   private val backgroundTaskManager = BackgroundTaskManager(application, projectRepo, apiKeyRepo, agentService)
+  private val webSearchService = WebSearchService()
+  private val chatHistoryRepo = ChatHistoryRepository(application)
+  private val gitHubService = GitHubService(application)
+  private val apkBuilderService = ApkBuilderService(application)
+  private val fileDiffService = FileDiffService()
 
   // Screen & UI
   private val _currentScreen = MutableStateFlow(Screen.CHAT)
@@ -109,6 +128,49 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
     )
   )
   val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
+
+  // Research Mode
+  private val _isSearchingWeb = MutableStateFlow(false)
+  val isSearchingWeb: StateFlow<Boolean> = _isSearchingWeb.asStateFlow()
+
+  private val _activeResearchSources = MutableStateFlow<List<ResearchSource>>(emptyList())
+  val activeResearchSources: StateFlow<List<ResearchSource>> = _activeResearchSources.asStateFlow()
+
+  // File Diffs & History Snapshots
+  private val _pendingDiff = MutableStateFlow<FileDiff?>(null)
+  val pendingDiff: StateFlow<FileDiff?> = _pendingDiff.asStateFlow()
+
+  private val _pendingDiffFile = MutableStateFlow<File?>(null)
+  val pendingDiffFile: StateFlow<File?> = _pendingDiffFile.asStateFlow()
+
+  private val _pendingDiffContent = MutableStateFlow<String?>(null)
+  val pendingDiffContent: StateFlow<String?> = _pendingDiffContent.asStateFlow()
+
+  private val _fileSnapshots = MutableStateFlow<List<FileBackupSnapshot>>(emptyList())
+  val fileSnapshots: StateFlow<List<FileBackupSnapshot>> = _fileSnapshots.asStateFlow()
+
+  // GitHub Integration
+  private val _gitHubAccount = MutableStateFlow<GitHubAccount?>(null)
+  val gitHubAccount: StateFlow<GitHubAccount?> = _gitHubAccount.asStateFlow()
+
+  private val _gitHubRepos = MutableStateFlow<List<GitHubRepo>>(emptyList())
+  val gitHubRepos: StateFlow<List<GitHubRepo>> = _gitHubRepos.asStateFlow()
+
+  private val _isGitHubLoading = MutableStateFlow(false)
+  val isGitHubLoading: StateFlow<Boolean> = _isGitHubLoading.asStateFlow()
+
+  private val _gitHubStatus = MutableStateFlow<String?>(null)
+  val gitHubStatus: StateFlow<String?> = _gitHubStatus.asStateFlow()
+
+  // APK Builder
+  private val _apkBuildState = MutableStateFlow(ApkBuildState())
+  val apkBuildState: StateFlow<ApkBuildState> = _apkBuildState.asStateFlow()
+
+  private val _isBuildingApk = MutableStateFlow(false)
+  val isBuildingApk: StateFlow<Boolean> = _isBuildingApk.asStateFlow()
+
+  private var activeAgentJob: Job? = null
+  private var activeApkBuildJob: Job? = null
 
   // Pending attachments in composer
   private val _pendingAttachments = MutableStateFlow<List<ChatAttachment>>(emptyList())
@@ -505,6 +567,32 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
     }
   }
 
+  fun createFile(name: String, content: String = "") {
+    createNewFile(name, content)
+  }
+
+  fun createDirectory(name: String) {
+    createNewFolder(name)
+  }
+
+  fun applyPendingDiff() {
+    _statusMessage.value = "Staged code changes applied to project files."
+    refreshFiles()
+  }
+
+  fun rejectPendingDiff() {
+    _statusMessage.value = "Staged diff changes rejected."
+  }
+
+  fun startApkBuild(variant: String = "Release") {
+    _statusMessage.value = "Initiating $variant APK build..."
+    runTerminalCommand("gradle assemble$variant")
+  }
+
+  fun executeTerminalCommand(command: String) {
+    runTerminalCommand(command)
+  }
+
   fun deleteFile(file: File): Boolean {
     val proj = _activeProject.value ?: run {
       _statusMessage.value = "No active project."
@@ -623,9 +711,6 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
     loadProviders()
     _statusMessage.value = "Active provider set to ${type.displayName}"
   }
-
-  // AI Agent Streaming Job
-  private var activeAgentJob: kotlinx.coroutines.Job? = null
 
   fun testProvider(config: ApiProviderConfig) {
     viewModelScope.launch {

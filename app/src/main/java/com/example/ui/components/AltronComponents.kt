@@ -120,7 +120,7 @@ fun AltronGlassCard(
 }
 
 /**
- * Primary action button: #FF8A00 orange background, #000000 black text and black icons.
+ * Primary action button: BrandPrimaryOrange background, crisp white text and white icons.
  */
 @Composable
 fun AltronPrimaryButton(
@@ -137,9 +137,9 @@ fun AltronPrimaryButton(
     enabled = enabled && !isLoading,
     colors = ButtonDefaults.buttonColors(
       containerColor = BrandPrimaryOrange,
-      contentColor = BrandTextBlack,
+      contentColor = Color.White,
       disabledContainerColor = BrandPrimaryOrange.copy(alpha = 0.45f),
-      disabledContentColor = BrandTextBlack.copy(alpha = 0.45f)
+      disabledContentColor = Color.White.copy(alpha = 0.6f)
     ),
     shape = RoundedCornerShape(12.dp)
   ) {
@@ -152,7 +152,7 @@ fun AltronPrimaryButton(
           imageVector = icon,
           contentDescription = null,
           modifier = Modifier.size(18.dp),
-          tint = BrandTextBlack
+          tint = Color.White
         )
         Spacer(modifier = Modifier.width(8.dp))
       }
@@ -160,7 +160,7 @@ fun AltronPrimaryButton(
         text = if (isLoading) "Processing..." else text,
         style = MaterialTheme.typography.labelLarge.copy(
           fontWeight = FontWeight.Bold,
-          color = BrandTextBlack
+          color = Color.White
         )
       )
     }

@@ -245,10 +245,32 @@ class AiAgentService {
       return@callbackFlow
     }
 
+    val effectiveModel = when (mode) {
+      AgentMode.RESEARCH -> config.researchModel.ifBlank { config.selectedModel }
+      AgentMode.CODE -> config.codingModel.ifBlank { config.selectedModel }
+      else -> config.selectedModel
+    }
+    val effectiveConfig = config.copy(selectedModel = effectiveModel)
+
     val modeInstruction = when (mode) {
-        AgentMode.ASK -> "You are a helpful assistant. Provide clear answers."
-        AgentMode.CODE -> "You are a coding assistant. Provide code snippets and explanations."
-        AgentMode.AGENT -> """You are ALTRON CODE AI, an expert mobile coding agent running on Android.
+      AgentMode.RESEARCH -> """You are ALTRON AI Research Assistant.
+You specialize in technical research, technology evaluations, documentation analysis, and architecture comparisons.
+Synthesize structured, objective research reports with clear sections:
+- Executive Summary
+- In-Depth Analysis & Comparison
+- Architectural Best Practices
+- Verified Sources & Citations
+Distinguish verified facts from AI interpretation."""
+      AgentMode.ASK -> "You are a helpful coding assistant. Provide clear, direct answers, conceptual explanations, and troubleshooting guidance."
+      AgentMode.CODE -> """You are ALTRON AI Coder, an expert software engineer.
+Provide production-ready, clean, modular code with syntax highlighting.
+Always explain architecture choices, edge cases, and testing strategies.
+When proposing file creation or modification, format it as:
+```file:<relative_path>
+<file_contents>
+```
+"""
+      AgentMode.AGENT -> """You are ALTRON CODE AI, an autonomous mobile coding agent running on Android.
 You help developers write code, inspect files, debug issues, and execute terminal commands safely.
 When you suggest a shell command, format it as:
 ```bash
@@ -303,7 +325,7 @@ Keep responses clear and concise.
     try {
       when (config.providerType) {
         ProviderType.GEMINI -> {
-          val url = "${config.baseUrl.trimEnd('/')}/v1beta/models/${config.selectedModel}:streamGenerateContent?key=${config.apiKey}&alt=sse"
+          val url = "${effectiveConfig.baseUrl.trimEnd('/')}/v1beta/models/${effectiveConfig.selectedModel}:streamGenerateContent?key=${effectiveConfig.apiKey}&alt=sse"
           val contentsArray = JSONArray()
           history.takeLast(6).forEach { msg ->
             val role = if (msg.sender == MessageSender.USER) "user" else "model"
@@ -431,7 +453,7 @@ Keep responses clear and concise.
           }
 
           val bodyJson = JSONObject().apply {
-            put("model", config.selectedModel)
+            put("model", effectiveConfig.selectedModel)
             put("messages", messagesArray)
             put("stream", true)
           }
@@ -529,7 +551,7 @@ Keep responses clear and concise.
           }
 
           val bodyJson = JSONObject().apply {
-            put("model", config.selectedModel)
+            put("model", effectiveConfig.selectedModel)
             put("system", systemInstruction)
             put("max_tokens", 4096)
             put("stream", true)
