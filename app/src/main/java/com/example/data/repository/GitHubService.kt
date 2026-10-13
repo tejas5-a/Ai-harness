@@ -3,7 +3,9 @@ package com.example.data.repository
 import android.content.Context
 import com.example.data.model.GitHubAccount
 import com.example.data.model.GitHubBranch
+import com.example.data.model.GitHubCommitItem
 import com.example.data.model.GitHubCommitResult
+import com.example.data.model.GitHubFileItem
 import com.example.data.model.GitHubRepo
 import com.example.data.model.Project
 import com.example.data.model.ProjectType
@@ -377,6 +379,235 @@ class GitHubService(
       }
     } catch (e: Exception) {
       false to "Network error: ${e.localizedMessage}"
+    }
+  }
+
+  suspend fun listRepoContents(
+    repoFullName: String,
+    path: String = "",
+    branch: String? = null
+  ): List<GitHubFileItem> = withContext(Dispatchers.IO) {
+    val token = getSavedToken()
+    try {
+      val cleanPath = path.trim().removePrefix("/")
+      val url = buildString {
+        append("https://api.github.com/repos/$repoFullName/contents")
+        if (cleanPath.isNotEmpty()) append("/$cleanPath")
+        if (!branch.isNullOrBlank()) append("?ref=$branch")
+      }
+      val reqBuilder = Request.Builder()
+        .url(url)
+        .addHeader("Accept", "application/vnd.github.v3+json")
+        .addHeader("User-Agent", "AltronCodeAI-Android")
+      if (token.isNotBlank()) {
+        reqBuilder.addHeader("Authorization", "Bearer $token")
+      }
+      client.newCall(reqBuilder.build()).execute().use { response ->
+        if (!response.isSuccessful) return@withContext emptyList()
+        val body = response.body?.string().orEmpty()
+        val list = mutableListOf<GitHubFileItem>()
+        if (body.trim().startsWith("[")) {
+          val arr = JSONArray(body)
+          for (i in 0 until arr.length()) {
+            val obj = arr.getJSONObject(i)
+            list.add(
+              GitHubFileItem(
+                name = obj.optString("name", ""),
+                path = obj.optString("path", ""),
+                type = obj.optString("type", "file"),
+                size = obj.optLong("size", 0L),
+                sha = obj.optString("sha", ""),
+                downloadUrl = obj.optString("download_url", null)
+              )
+            )
+          }
+        } else if (body.trim().startsWith("{")) {
+          val obj = JSONObject(body)
+          list.add(
+            GitHubFileItem(
+              name = obj.optString("name", ""),
+              path = obj.optString("path", ""),
+              type = obj.optString("type", "file"),
+              size = obj.optLong("size", 0L),
+              sha = obj.optString("sha", ""),
+              downloadUrl = obj.optString("download_url", null)
+            )
+          )
+        }
+        list.sortedWith(compareBy({ it.type != "dir" }, { it.name.lowercase() }))
+      }
+    } catch (e: Exception) {
+      emptyList()
+    }
+  }
+
+  suspend fun getRepoFileContent(
+    repoFullName: String,
+    path: String,
+    branch: String? = null
+  ): String = withContext(Dispatchers.IO) {
+    val token = getSavedToken()
+    try {
+      val cleanPath = path.trim().removePrefix("/")
+      val url = buildString {
+        append("https://api.github.com/repos/$repoFullName/contents/$cleanPath")
+        if (!branch.isNullOrBlank()) append("?ref=$branch")
+      }
+      val reqBuilder = Request.Builder()
+        .url(url)
+        .addHeader("Accept", "application/vnd.github.v3+json")
+        .addHeader("User-Agent", "AltronCodeAI-Android")
+      if (token.isNotBlank()) {
+        reqBuilder.addHeader("Authorization", "Bearer $token")
+      }
+      client.newCall(reqBuilder.build()).execute().use { response ->
+        if (!response.isSuccessful) return@withContext ""
+        val body = response.body?.string().orEmpty()
+        val json = JSONObject(body)
+        val content = json.optString("content", "")
+        val encoding = json.optString("encoding", "base64")
+        if (encoding == "base64" && content.isNotBlank()) {
+          val cleanBase64 = content.replace("\n", "").replace("\r", "")
+          val bytes = android.util.Base64.decode(cleanBase64, android.util.Base64.NO_WRAP)
+          String(bytes, Charsets.UTF_8)
+        } else {
+          content
+        }
+      }
+    } catch (e: Exception) {
+      ""
+    }
+  }
+
+  suspend fun listRepoBranches(repoFullName: String): List<String> = withContext(Dispatchers.IO) {
+    val token = getSavedToken()
+    try {
+      val url = "https://api.github.com/repos/$repoFullName/branches?per_page=30"
+      val reqBuilder = Request.Builder()
+        .url(url)
+        .addHeader("Accept", "application/vnd.github.v3+json")
+        .addHeader("User-Agent", "AltronCodeAI-Android")
+      if (token.isNotBlank()) {
+        reqBuilder.addHeader("Authorization", "Bearer $token")
+      }
+      client.newCall(reqBuilder.build()).execute().use { response ->
+        if (!response.isSuccessful) return@withContext listOf("main")
+        val body = response.body?.string().orEmpty()
+        val arr = JSONArray(body)
+        val list = mutableListOf<String>()
+        for (i in 0 until arr.length()) {
+          list.add(arr.getJSONObject(i).optString("name", ""))
+        }
+        if (list.isEmpty()) listOf("main") else list
+      }
+    } catch (e: Exception) {
+      listOf("main")
+    }
+  }
+
+  suspend fun listRepoCommits(
+    repoFullName: String,
+    branch: String? = null
+  ): List<GitHubCommitItem> = withContext(Dispatchers.IO) {
+    val token = getSavedToken()
+    try {
+      val url = buildString {
+        append("https://api.github.com/repos/$repoFullName/commits?per_page=20")
+        if (!branch.isNullOrBlank()) append("&sha=$branch")
+      }
+      val reqBuilder = Request.Builder()
+        .url(url)
+        .addHeader("Accept", "application/vnd.github.v3+json")
+        .addHeader("User-Agent", "AltronCodeAI-Android")
+      if (token.isNotBlank()) {
+        reqBuilder.addHeader("Authorization", "Bearer $token")
+      }
+      client.newCall(reqBuilder.build()).execute().use { response ->
+        if (!response.isSuccessful) return@withContext emptyList()
+        val body = response.body?.string().orEmpty()
+        val arr = JSONArray(body)
+        val list = mutableListOf<GitHubCommitItem>()
+        for (i in 0 until arr.length()) {
+          val obj = arr.getJSONObject(i)
+          val sha = obj.optString("sha", "")
+          val commitObj = obj.optJSONObject("commit")
+          val message = commitObj?.optString("message", "") ?: ""
+          val authorObj = commitObj?.optJSONObject("author")
+          val authorName = authorObj?.optString("name", "GitHub User") ?: "GitHub User"
+          val date = authorObj?.optString("date", "") ?: ""
+          list.add(
+            GitHubCommitItem(
+              sha = sha,
+              shortSha = sha.take(7),
+              message = message.lines().firstOrNull() ?: message,
+              authorName = authorName,
+              date = date
+            )
+          )
+        }
+        list
+      }
+    } catch (e: Exception) {
+      emptyList()
+    }
+  }
+
+  suspend fun deleteRepoFile(
+    repoFullName: String,
+    path: String,
+    commitMessage: String,
+    branch: String = "main"
+  ): Pair<Boolean, String> = withContext(Dispatchers.IO) {
+    val token = getSavedToken()
+    if (token.isBlank()) return@withContext false to "Not authenticated with GitHub."
+    try {
+      // 1. Get SHA of file
+      var fileSha: String? = null
+      val getUrl = "https://api.github.com/repos/$repoFullName/contents/$path?ref=$branch"
+      val getReq = Request.Builder()
+        .url(getUrl)
+        .addHeader("Authorization", "Bearer $token")
+        .addHeader("Accept", "application/vnd.github.v3+json")
+        .addHeader("User-Agent", "AltronCodeAI-Android")
+        .get()
+        .build()
+
+      client.newCall(getReq).execute().use { res ->
+        if (res.isSuccessful) {
+          fileSha = JSONObject(res.body?.string().orEmpty()).optString("sha")
+        }
+      }
+
+      if (fileSha.isNullOrBlank()) {
+        return@withContext false to "Cannot delete: File SHA not found on remote branch."
+      }
+
+      // 2. Send DELETE request
+      val deleteUrl = "https://api.github.com/repos/$repoFullName/contents/$path"
+      val bodyJson = JSONObject().apply {
+        put("message", commitMessage)
+        put("sha", fileSha)
+        put("branch", branch)
+      }
+
+      val delReq = Request.Builder()
+        .url(deleteUrl)
+        .addHeader("Authorization", "Bearer $token")
+        .addHeader("Accept", "application/vnd.github.v3+json")
+        .addHeader("User-Agent", "AltronCodeAI-Android")
+        .delete(bodyJson.toString().toRequestBody(jsonMediaType))
+        .build()
+
+      client.newCall(delReq).execute().use { response ->
+        if (response.isSuccessful) {
+          true to "File deleted successfully from GitHub ($branch)."
+        } else {
+          val err = response.body?.string().orEmpty()
+          false to "Delete failed (HTTP ${response.code}): $err"
+        }
+      }
+    } catch (e: Exception) {
+      false to "Delete error: ${e.localizedMessage}"
     }
   }
 }

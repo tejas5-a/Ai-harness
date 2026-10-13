@@ -476,7 +476,7 @@ fun HomeScreen(
             color = StitchPrimaryText
           )
           Text(
-            text = "View all (${maxOf(projects.size, 8)})",
+            text = "View all (${projects.size})",
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
             color = StitchPrimaryAccent,
@@ -484,25 +484,42 @@ fun HomeScreen(
           )
         }
 
-        // Project Card 1
-        RecentProjectCard(
-          name = activeProject?.name ?: "AltronCore-Android",
-          description = "Local-first multimodal autonomous code generation agent",
-          lang = "Kotlin / Compose",
-          branch = "feat/agentic-loop",
-          time = "12m ago",
-          onOpen = { viewModel.setScreen(Screen.FILE_EXPLORER) }
-        )
-
-        // Project Card 2
-        RecentProjectCard(
-          name = "neural-syntax-parser",
-          description = "Tree-sitter bindings with hybrid token classification",
-          lang = "Rust / C++",
-          branch = "main",
-          time = "3h ago",
-          onOpen = { viewModel.setScreen(Screen.CODE_EDITOR) }
-        )
+        if (projects.isEmpty()) {
+          Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = StitchCardBackground,
+            border = androidx.compose.foundation.BorderStroke(1.dp, StitchBorder)
+          ) {
+            Column(
+              modifier = Modifier.padding(16.dp),
+              horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+              Text(text = "No projects yet", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = StitchPrimaryText)
+              Spacer(modifier = Modifier.height(4.dp))
+              Text(
+                text = "Create a project or clone a repository to get started with ALTRON CODE AI.",
+                fontSize = 12.sp,
+                color = StitchSecondaryText,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+              )
+            }
+          }
+        } else {
+          projects.take(3).forEach { proj ->
+            RecentProjectCard(
+              name = proj.name,
+              description = proj.description.ifBlank { "Workspace Project" },
+              lang = proj.type.displayName,
+              branch = "main",
+              time = "Active",
+              onOpen = {
+                viewModel.selectProject(proj)
+                viewModel.setScreen(Screen.FILE_EXPLORER)
+              }
+            )
+          }
+        }
       }
     }
 

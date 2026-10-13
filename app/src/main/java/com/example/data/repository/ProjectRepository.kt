@@ -14,6 +14,10 @@ class ProjectRepository(private val context: Context) {
     }
   }
 
+  private val initFlagFile: File by lazy {
+    File(workspaceDir, ".altron_initialized")
+  }
+
   init {
     ensureDefaultProjects()
   }
@@ -58,12 +62,7 @@ class ProjectRepository(private val context: Context) {
       )
     }
 
-    return if (projects.isEmpty()) {
-      ensureDefaultProjects()
-      getProjects()
-    } else {
-      projects.sortedByDescending { it.lastModified }
-    }
+    return projects.sortedByDescending { it.lastModified }
   }
 
   fun getProjectById(projectId: String): Project? {
@@ -275,7 +274,8 @@ class ProjectRepository(private val context: Context) {
   fun deleteProject(project: Project): Boolean {
     // Boundary check
     if (!isSafeWithinWorkspace(project.rootDir)) return false
-    return project.rootDir.deleteRecursively()
+    val deleted = project.rootDir.deleteRecursively()
+    return deleted || !project.rootDir.exists()
   }
 
   fun renameProject(project: Project, newName: String): Project {
@@ -435,6 +435,7 @@ class ProjectRepository(private val context: Context) {
   }
 
   private fun ensureDefaultProjects() {
+    if (initFlagFile.exists()) return
     val existing = workspaceDir.listFiles { file -> file.isDirectory } ?: emptyArray()
     if (existing.isEmpty()) {
       createProject(
@@ -448,5 +449,8 @@ class ProjectRepository(private val context: Context) {
         description = "Lightweight mobile web prototyping sandbox"
       )
     }
+    try {
+      initFlagFile.createNewFile()
+    } catch (_: Exception) {}
   }
 }

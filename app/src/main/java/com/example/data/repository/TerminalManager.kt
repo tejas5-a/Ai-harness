@@ -28,12 +28,24 @@ class TerminalManager {
   private val _isRunning = MutableStateFlow(false)
   val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
 
+  @Volatile
+  private var currentProcess: Process? = null
+
   private val dangerousPattern = Pattern.compile(
     "(?i)\\brm\\s+-[a-zA-Z]*[rf]|(?i)\\brm\\s+--recursive|(?i)\\bmkfs|(?i)\\bdd\\s+if=|(?i)\\breboot|(?i)\\bshutdown|(?i)\\bchmod\\s+-[a-zA-Z]*777|(?i)>\\s*/dev/|:\\(\\)\\s*\\{"
   )
 
   fun isPotentiallyDangerous(command: String): Boolean {
     return dangerousPattern.matcher(command).find()
+  }
+
+  fun stopCurrentProcess() {
+    try {
+      currentProcess?.destroy()
+      currentProcess = null
+      _isRunning.value = false
+      appendEntry(TerminalEntryType.STDERR, "[Process terminated by user]")
+    } catch (_: Exception) {}
   }
 
   suspend fun executeCommand(
@@ -85,8 +97,14 @@ class TerminalManager {
         workingDir.mkdirs()
       }
 
-      // Execute on real Android Linux process
-      val process = ProcessBuilder("/system/bin/sh", "-c", trimmed)
+      val shellPath = when {
+        File("/system/bin/sh").exists() -> "/system/bin/sh"
+        File("/bin/sh").exists() -> "/bin/sh"
+        else -> "sh"
+      }
+
+      // Execute on real process
+      val process = ProcessBuilder(shellPath, "-c", trimmed)
         .directory(workingDir)
         .redirectErrorStream(false)
         .apply {
@@ -95,6 +113,8 @@ class TerminalManager {
           environment()["PWD"] = workingDir.absolutePath
         }
         .start()
+
+      currentProcess = process
 
       // Read standard output
       val outputReader = BufferedReader(InputStreamReader(process.inputStream))
@@ -114,12 +134,14 @@ class TerminalManager {
         line?.let { stderrLines.add(it) }
       }
 
-      val exited = process.waitFor(15, TimeUnit.SECONDS)
+      val exited = process.waitFor(20, TimeUnit.SECONDS)
       val exitCode = if (exited) process.exitValue() else {
         process.destroy()
-        appendEntry(TerminalEntryType.STDERR, "Execution timed out after 15 seconds")
+        appendEntry(TerminalEntryType.STDERR, "Execution timed out after 20 seconds")
         -9
       }
+
+      currentProcess = null
 
       if (stdoutLines.isNotEmpty()) {
         appendEntry(TerminalEntryType.STDOUT, stdoutLines.joinToString("\n"))
@@ -138,6 +160,7 @@ class TerminalManager {
       _isRunning.value = false
       return@withContext exitCode
     } catch (e: Exception) {
+      currentProcess = null
       appendEntry(TerminalEntryType.STDERR, "Execution failed: ${e.localizedMessage}")
       _isRunning.value = false
       return@withContext -1

@@ -102,6 +102,10 @@ fun ProjectsDashboardScreen(
   var isGridView by remember { mutableStateOf(true) }
   var showCreateDialog by remember { mutableStateOf(false) }
 
+  // Project Deletion State
+  var projectToDelete by remember { mutableStateOf<Project?>(null) }
+  var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+
   // New Project Form State
   var newProjName by remember { mutableStateOf("") }
   var newProjType by remember { mutableStateOf(ProjectType.ANDROID_KOTLIN) }
@@ -246,56 +250,194 @@ fun ProjectsDashboardScreen(
     }
 
     // Projects Grid / List
+    val filteredProjects = projects.filter { proj ->
+      val matchesSearch = searchQuery.isBlank() ||
+          proj.name.contains(searchQuery, ignoreCase = true) ||
+          proj.description.contains(searchQuery, ignoreCase = true)
+      val matchesFilter = when (selectedFilter) {
+        "All" -> true
+        "Kotlin" -> proj.type == ProjectType.ANDROID || proj.type == ProjectType.ANDROID_KOTLIN || proj.type == ProjectType.KOTLIN
+        "TypeScript" -> proj.type == ProjectType.WEB || proj.type == ProjectType.NODE || proj.type == ProjectType.NODEJS
+        "Python" -> proj.type == ProjectType.PYTHON
+        "Go" -> proj.type == ProjectType.CUSTOM
+        else -> true
+      }
+      matchesSearch && matchesFilter
+    }
+
     item {
-      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        // Project 1: altron-mobile-core
-        StitchProjectCard(
-          name = activeProject?.name ?: "altron-mobile-core",
-          lang = "Kotlin",
-          desc = "Jetpack Compose & Claude 3.5 Assistant bridge",
-          branch = "main",
-          source = "GitHub",
-          time = "2h ago",
-          icon = Icons.Default.PhoneAndroid,
-          onOpen = { viewModel.setScreen(Screen.FILE_EXPLORER) },
-          onDelete = {
-            android.widget.Toast.makeText(context, "Deleted project", android.widget.Toast.LENGTH_SHORT).show()
+      if (filteredProjects.isEmpty()) {
+        Surface(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+          shape = RoundedCornerShape(16.dp),
+          color = StitchCardBackground,
+          border = androidx.compose.foundation.BorderStroke(1.dp, StitchBorder)
+        ) {
+          Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+          ) {
+            Box(
+              modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(StitchSoftAccent),
+              contentAlignment = Alignment.Center
+            ) {
+              Icon(
+                imageVector = Icons.Default.FolderOpen,
+                contentDescription = null,
+                tint = StitchPrimaryAccent,
+                modifier = Modifier.size(26.dp)
+              )
+            }
+            Text(
+              text = if (projects.isEmpty()) "No projects yet" else "No matching projects",
+              fontSize = 16.sp,
+              fontWeight = FontWeight.Bold,
+              color = StitchPrimaryText
+            )
+            Text(
+              text = if (projects.isEmpty())
+                "Create a new Android Compose or Web project to begin coding with ALTRON AI."
+              else
+                "No projects match \"$searchQuery\" with filter \"$selectedFilter\".",
+              fontSize = 12.5.sp,
+              color = StitchSecondaryText,
+              textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            if (projects.isEmpty()) {
+              Spacer(modifier = Modifier.height(4.dp))
+              Button(
+                onClick = { showCreateDialog = true },
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(
+                  containerColor = StitchPrimaryAccent,
+                  contentColor = Color.White
+                )
+              ) {
+                Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Initialize Starter Project", fontWeight = FontWeight.Bold)
+              }
+            }
           }
-        )
-
-        // Project 2: ai-code-interpreter
-        StitchProjectCard(
-          name = "ai-code-interpreter",
-          lang = "Python",
-          desc = "Secure sandbox runner for live AI evaluation",
-          branch = "dev",
-          source = "Local",
-          time = "Yesterday",
-          icon = Icons.Default.Terminal,
-          onOpen = { viewModel.setScreen(Screen.TERMINAL) },
-          onDelete = {
-            android.widget.Toast.makeText(context, "Deleted project", android.widget.Toast.LENGTH_SHORT).show()
+        }
+      } else {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+          filteredProjects.forEach { proj ->
+            val icon = when (proj.type) {
+              ProjectType.ANDROID, ProjectType.ANDROID_KOTLIN -> Icons.Default.PhoneAndroid
+              ProjectType.PYTHON -> Icons.Default.Terminal
+              ProjectType.WEB -> Icons.Default.Code
+              else -> Icons.Default.Laptop
+            }
+            StitchProjectCard(
+              name = proj.name,
+              lang = proj.type.displayName,
+              desc = proj.description.ifBlank { "Workspace Project" },
+              branch = "main",
+              source = if (proj.gitRepoUrl != null) "GitHub" else "Local",
+              time = "Active",
+              icon = icon,
+              onOpen = {
+                viewModel.selectProject(proj)
+                viewModel.setScreen(Screen.FILE_EXPLORER)
+              },
+              onDelete = {
+                projectToDelete = proj
+                showDeleteConfirmDialog = true
+              }
+            )
           }
-        )
-
-        // Project 3: altron-web-studio
-        StitchProjectCard(
-          name = "altron-web-studio",
-          lang = "TypeScript",
-          desc = "Next.js IDE interface with live preview & Tailwind",
-          branch = "master",
-          source = "GitHub",
-          time = "3d ago",
-          icon = Icons.Default.Code,
-          onOpen = { viewModel.setScreen(Screen.CODE_EDITOR) },
-          onDelete = {
-            android.widget.Toast.makeText(context, "Deleted project", android.widget.Toast.LENGTH_SHORT).show()
-          }
-        )
+        }
       }
     }
 
     item { Spacer(modifier = Modifier.height(24.dp)) }
+  }
+
+  // Delete Confirmation Dialog
+  if (showDeleteConfirmDialog && projectToDelete != null) {
+    val proj = projectToDelete!!
+    Dialog(onDismissRequest = {
+      showDeleteConfirmDialog = false
+      projectToDelete = null
+    }) {
+      Surface(
+        modifier = Modifier
+          .fillMaxWidth()
+          .testTag("delete_project_dialog"),
+        shape = RoundedCornerShape(16.dp),
+        color = StitchCardBackground,
+        border = androidx.compose.foundation.BorderStroke(1.dp, StitchBorder),
+        shadowElevation = 8.dp
+      ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+              modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(StitchError.copy(alpha = 0.15f)),
+              contentAlignment = Alignment.Center
+            ) {
+              Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = StitchError, modifier = Modifier.size(20.dp))
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(text = "Delete Project", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = StitchPrimaryText)
+          }
+
+          Text(
+            text = "Are you sure you want to permanently delete \"${proj.name}\"?\n\nThis will remove the project folder and all local files. Remote GitHub repositories will NOT be affected.",
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            color = StitchSecondaryText
+          )
+
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Button(
+              onClick = {
+                showDeleteConfirmDialog = false
+                projectToDelete = null
+              },
+              shape = RoundedCornerShape(8.dp),
+              colors = ButtonDefaults.buttonColors(containerColor = StitchSecondaryBackground, contentColor = StitchPrimaryText),
+              modifier = Modifier.testTag("cancel_delete_project_btn")
+            ) {
+              Text("Cancel")
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Button(
+              onClick = {
+                val ok = viewModel.deleteProject(proj)
+                showDeleteConfirmDialog = false
+                projectToDelete = null
+                if (ok) {
+                  android.widget.Toast.makeText(context, "Project \"${proj.name}\" deleted successfully.", android.widget.Toast.LENGTH_SHORT).show()
+                } else {
+                  android.widget.Toast.makeText(context, "Failed to delete project \"${proj.name}\".", android.widget.Toast.LENGTH_SHORT).show()
+                }
+              },
+              shape = RoundedCornerShape(8.dp),
+              colors = ButtonDefaults.buttonColors(containerColor = StitchError, contentColor = Color.White),
+              modifier = Modifier.testTag("confirm_delete_project_btn")
+            ) {
+              Text("Delete", fontWeight = FontWeight.Bold)
+            }
+          }
+        }
+      }
+    }
   }
 
   // Create Project Modal Dialog

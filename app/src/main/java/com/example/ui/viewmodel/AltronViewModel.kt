@@ -27,6 +27,8 @@ import com.example.data.model.Conversation
 import com.example.data.model.FileBackupSnapshot
 import com.example.data.model.FileDiff
 import com.example.data.model.GitHubAccount
+import com.example.data.model.GitHubCommitItem
+import com.example.data.model.GitHubFileItem
 import com.example.data.model.GitHubRepo
 import com.example.data.model.ResearchSource
 import com.example.data.model.TerminalEntry
@@ -156,11 +158,29 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
   private val _gitHubRepos = MutableStateFlow<List<GitHubRepo>>(emptyList())
   val gitHubRepos: StateFlow<List<GitHubRepo>> = _gitHubRepos.asStateFlow()
 
+  private val _selectedGitHubRepo = MutableStateFlow<GitHubRepo?>(null)
+  val selectedGitHubRepo: StateFlow<GitHubRepo?> = _selectedGitHubRepo.asStateFlow()
+
+  private val _selectedGitHubBranch = MutableStateFlow("main")
+  val selectedGitHubBranch: StateFlow<String> = _selectedGitHubBranch.asStateFlow()
+
+  private val _gitHubBranches = MutableStateFlow<List<String>>(listOf("main"))
+  val gitHubBranches: StateFlow<List<String>> = _gitHubBranches.asStateFlow()
+
+  private val _gitHubFiles = MutableStateFlow<List<GitHubFileItem>>(emptyList())
+  val gitHubFiles: StateFlow<List<GitHubFileItem>> = _gitHubFiles.asStateFlow()
+
+  private val _gitHubCommits = MutableStateFlow<List<GitHubCommitItem>>(emptyList())
+  val gitHubCommits: StateFlow<List<GitHubCommitItem>> = _gitHubCommits.asStateFlow()
+
   private val _isGitHubLoading = MutableStateFlow(false)
   val isGitHubLoading: StateFlow<Boolean> = _isGitHubLoading.asStateFlow()
 
   private val _gitHubStatus = MutableStateFlow<String?>(null)
   val gitHubStatus: StateFlow<String?> = _gitHubStatus.asStateFlow()
+
+  private val _gitHubError = MutableStateFlow<String?>(null)
+  val gitHubError: StateFlow<String?> = _gitHubError.asStateFlow()
 
   // APK Builder
   private val _apkBuildState = MutableStateFlow(ApkBuildState())
@@ -391,6 +411,7 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
   init {
     loadProjects()
     loadProviders()
+    loadGitHubSavedSession()
   }
 
   fun setScreen(screen: Screen) {
@@ -442,14 +463,39 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
     _statusMessage.value = "Project '${newProj.name}' created successfully!"
   }
 
-  fun deleteProject(project: Project) {
-    requestApproval("Delete Project: ${project.name} and all its files?") {
-      projectRepo.deleteProject(project)
-      _openTabs.value = emptyList()
-      _activeTab.value = null
-      _activeContent.value = ""
-      loadProjects()
-      _statusMessage.value = "Project deleted."
+  fun deleteProject(project: Project): Boolean {
+    val success = projectRepo.deleteProject(project)
+    if (success) {
+      _openTabs.value = _openTabs.value.filter { tab ->
+        !tab.file.absolutePath.startsWith(project.rootDir.absolutePath)
+      }
+      if (_activeTab.value?.file?.absolutePath?.startsWith(project.rootDir.absolutePath) == true) {
+        _activeTab.value = _openTabs.value.firstOrNull()
+        _activeContent.value = _activeTab.value?.let { projectRepo.readFile(project, it.file) } ?: ""
+        _isContentModified.value = false
+      }
+
+      val updated = projectRepo.getProjects()
+      _projects.value = updated
+
+      if (_activeProject.value?.id == project.id) {
+        val nextProj = updated.firstOrNull()
+        if (nextProj != null) {
+          selectProject(nextProj)
+        } else {
+          _activeProject.value = null
+          _currentDirectory.value = null
+          _currentFiles.value = emptyList()
+          _activeContent.value = ""
+          _activeTab.value = null
+          _isContentModified.value = false
+        }
+      }
+      _statusMessage.value = "Project '${project.name}' deleted successfully."
+      return true
+    } else {
+      _statusMessage.value = "Failed to delete project '${project.name}'."
+      return false
     }
   }
 
@@ -585,12 +631,41 @@ class AltronViewModel(application: Application) : AndroidViewModel(application) 
   }
 
   fun startApkBuild(variant: String = "Release") {
-    _statusMessage.value = "Initiating $variant APK build..."
-    runTerminalCommand("gradle assemble$variant")
+    val proj = _activeProject.value
+    if (proj == null) {
+      _statusMessage.value = "No active project selected for APK build."
+      return
+    }
+    _statusMessage.value = "Building APK ($variant) for ${proj.name}..."
+    activeApkBuildJob?.cancel()
+    activeApkBuildJob = viewModelScope.launch {
+      _isBuildingApk.value = true
+      apkBuilderService.buildApk(proj).collect { state ->
+        _apkBuildState.value = state
+        _isBuildingApk.value = state.status == ApkBuildStatus.VALIDATING ||
+            state.status == ApkBuildStatus.COMPILING ||
+            state.status == ApkBuildStatus.PACKAGING
+        if (state.status == ApkBuildStatus.SUCCESS) {
+          _statusMessage.value = "APK build succeeded: ${state.outputApkFile?.name}"
+        } else if (state.status == ApkBuildStatus.FAILED) {
+          _statusMessage.value = "APK build failed: ${state.errorMessage}"
+        }
+      }
+    }
+  }
+
+  fun stopApkBuild() {
+    activeApkBuildJob?.cancel()
+    _isBuildingApk.value = false
+    _statusMessage.value = "APK build stopped."
   }
 
   fun executeTerminalCommand(command: String) {
     runTerminalCommand(command)
+  }
+
+  fun stopTerminalCommand() {
+    terminalManager.stopCurrentProcess()
   }
 
   fun deleteFile(file: File): Boolean {
@@ -950,6 +1025,183 @@ jobs:
       _statusMessage.value = "Workflow saved to '.github/workflows/android-build.yml'"
     }
     return saved
+  }
+
+  // ==================== GITHUB REAL INTEGRATION ====================
+
+  fun loadGitHubSavedSession() {
+    val token = gitHubService.getSavedToken()
+    if (token.isNotBlank()) {
+      viewModelScope.launch {
+        _isGitHubLoading.value = true
+        val (ok, account) = gitHubService.authenticateUser(token)
+        if (ok && account != null) {
+          _gitHubAccount.value = account
+          _gitHubRepos.value = gitHubService.listUserRepositories()
+          _gitHubStatus.value = "Connected as @${account.username}"
+        } else {
+          _gitHubError.value = "Saved GitHub session expired or invalid token."
+        }
+        _isGitHubLoading.value = false
+      }
+    }
+  }
+
+  fun connectGitHub(token: String) {
+    val cleanToken = token.trim()
+    if (cleanToken.isBlank()) {
+      _gitHubError.value = "Please enter a valid GitHub Personal Access Token."
+      return
+    }
+    viewModelScope.launch {
+      _isGitHubLoading.value = true
+      _gitHubError.value = null
+      _gitHubStatus.value = "Authenticating with GitHub..."
+      val (ok, account) = gitHubService.authenticateUser(cleanToken)
+      if (ok && account != null) {
+        _gitHubAccount.value = account
+        _gitHubStatus.value = "Loading repositories..."
+        val repos = gitHubService.listUserRepositories()
+        _gitHubRepos.value = repos
+        _gitHubStatus.value = "Connected as @${account.username}"
+        _statusMessage.value = "Connected to GitHub (@${account.username})"
+      } else {
+        _gitHubError.value = "GitHub authentication failed. Check token permissions (repo, read:user)."
+        _gitHubStatus.value = null
+      }
+      _isGitHubLoading.value = false
+    }
+  }
+
+  fun disconnectGitHub() {
+    gitHubService.disconnectAccount()
+    _gitHubAccount.value = null
+    _gitHubRepos.value = emptyList()
+    _selectedGitHubRepo.value = null
+    _gitHubFiles.value = emptyList()
+    _gitHubCommits.value = emptyList()
+    _gitHubStatus.value = "Disconnected from GitHub."
+    _statusMessage.value = "Disconnected from GitHub."
+  }
+
+  fun refreshGitHub() {
+    val token = gitHubService.getSavedToken()
+    if (token.isNotBlank()) {
+      connectGitHub(token)
+    } else {
+      _statusMessage.value = "No saved GitHub token."
+    }
+  }
+
+  fun selectGitHubRepo(repo: GitHubRepo) {
+    _selectedGitHubRepo.value = repo
+    _selectedGitHubBranch.value = repo.defaultBranch
+    viewModelScope.launch {
+      _isGitHubLoading.value = true
+      val branches = gitHubService.listRepoBranches(repo.fullName)
+      _gitHubBranches.value = branches
+      _gitHubFiles.value = gitHubService.listRepoContents(repo.fullName, "", repo.defaultBranch)
+      _gitHubCommits.value = gitHubService.listRepoCommits(repo.fullName, repo.defaultBranch)
+      _isGitHubLoading.value = false
+    }
+    setScreen(Screen.GITHUB_WORKSPACE)
+  }
+
+  fun selectGitHubBranch(branch: String) {
+    val repo = _selectedGitHubRepo.value ?: return
+    _selectedGitHubBranch.value = branch
+    viewModelScope.launch {
+      _isGitHubLoading.value = true
+      _gitHubFiles.value = gitHubService.listRepoContents(repo.fullName, "", branch)
+      _gitHubCommits.value = gitHubService.listRepoCommits(repo.fullName, branch)
+      _isGitHubLoading.value = false
+    }
+  }
+
+  fun loadGitHubRepoFiles(path: String = "") {
+    val repo = _selectedGitHubRepo.value ?: return
+    val branch = _selectedGitHubBranch.value
+    viewModelScope.launch {
+      _isGitHubLoading.value = true
+      _gitHubFiles.value = gitHubService.listRepoContents(repo.fullName, path, branch)
+      _isGitHubLoading.value = false
+    }
+  }
+
+  fun loadGitHubRepoCommits() {
+    val repo = _selectedGitHubRepo.value ?: return
+    val branch = _selectedGitHubBranch.value
+    viewModelScope.launch {
+      _isGitHubLoading.value = true
+      _gitHubCommits.value = gitHubService.listRepoCommits(repo.fullName, branch)
+      _isGitHubLoading.value = false
+    }
+  }
+
+  fun commitAndPushToGitHub(path: String, content: String, message: String) {
+    val repo = _selectedGitHubRepo.value ?: run {
+      _statusMessage.value = "No GitHub repository selected."
+      return
+    }
+    val branch = _selectedGitHubBranch.value
+    viewModelScope.launch {
+      _isGitHubLoading.value = true
+      val result = gitHubService.commitAndPushFile(repo.fullName, path, content, message, branch)
+      if (result.success) {
+        _statusMessage.value = "Pushed to GitHub: ${result.message}"
+        _gitHubFiles.value = gitHubService.listRepoContents(repo.fullName, "", branch)
+        _gitHubCommits.value = gitHubService.listRepoCommits(repo.fullName, branch)
+      } else {
+        _statusMessage.value = "Commit error: ${result.message}"
+        _gitHubError.value = result.message
+      }
+      _isGitHubLoading.value = false
+    }
+  }
+
+  fun deleteGitHubFile(path: String, message: String) {
+    val repo = _selectedGitHubRepo.value ?: return
+    val branch = _selectedGitHubBranch.value
+    viewModelScope.launch {
+      _isGitHubLoading.value = true
+      val (ok, msg) = gitHubService.deleteRepoFile(repo.fullName, path, message, branch)
+      if (ok) {
+        _statusMessage.value = msg
+        _gitHubFiles.value = gitHubService.listRepoContents(repo.fullName, "", branch)
+        _gitHubCommits.value = gitHubService.listRepoCommits(repo.fullName, branch)
+      } else {
+        _statusMessage.value = msg
+        _gitHubError.value = msg
+      }
+      _isGitHubLoading.value = false
+    }
+  }
+
+  fun cloneGitHubRepo(repo: GitHubRepo) {
+    viewModelScope.launch {
+      _isGitHubLoading.value = true
+      _statusMessage.value = "Cloning '${repo.name}' into workspace..."
+      val (ok, project) = gitHubService.cloneRepoToWorkspace(repo, projectRepo)
+      if (ok && project != null) {
+        loadProjects()
+        selectProject(project)
+        _statusMessage.value = "Repository '${repo.name}' cloned successfully!"
+        setScreen(Screen.FILE_EXPLORER)
+      } else {
+        _statusMessage.value = "Failed to clone repository '${repo.name}'."
+      }
+      _isGitHubLoading.value = false
+    }
+  }
+
+  fun createGitHubPullRequest(title: String, headBranch: String, baseBranch: String = "main", body: String = "") {
+    val repo = _selectedGitHubRepo.value ?: return
+    viewModelScope.launch {
+      _isGitHubLoading.value = true
+      val (ok, msg) = gitHubService.createPullRequest(repo.fullName, title, headBranch, baseBranch, body)
+      _statusMessage.value = msg
+      _isGitHubLoading.value = false
+    }
   }
 
   // ==================== DANGER CONFIRMATION ====================

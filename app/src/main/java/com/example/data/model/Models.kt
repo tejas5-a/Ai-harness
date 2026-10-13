@@ -292,6 +292,25 @@ data class GitHubCommitResult(
   val message: String
 )
 
+data class GitHubFileItem(
+  val name: String,
+  val path: String,
+  val type: String,
+  val size: Long = 0L,
+  val sha: String = "",
+  val downloadUrl: String? = null
+) {
+  val isDirectory: Boolean get() = type == "dir"
+}
+
+data class GitHubCommitItem(
+  val sha: String,
+  val shortSha: String,
+  val message: String,
+  val authorName: String,
+  val date: String
+)
+
 // Android APK Builder Models
 enum class ApkBuildStatus {
   IDLE,
